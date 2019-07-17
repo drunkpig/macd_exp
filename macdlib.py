@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 def ema(data, n=12, val_name="close"):
     import numpy as np
@@ -65,12 +66,41 @@ def macd(data, quick_n=12, slow_n=26, dem_n=9, val_name="close"):
     ema_quick = np.asarray(ema(data, quick_n, val_name))
     ema_slow = np.asarray(ema(data, slow_n, val_name))
     DIFF = ema_quick - ema_slow
-    #data["diff"] = DIFF
+    data["diff"] = DIFF
     DEM = ema(data, dem_n, "diff")
     BAR = (DIFF - DEM)*2
     #data['dem'] = DEM
     #data['bar'] = BAR
     return  DIFF, DEM, BAR
+
+def ma(data, n=10, val_name="close"):
+    '''
+    移动平均线 Moving Average
+    Parameters
+    ------
+      data:pandas.DataFrame
+                  通过 get_h_data 取得的股票数据
+      n:int
+                  移动平均线时长，时间单位根据data决定
+      val_name:string
+                  计算哪一列的列名，默认为 close 收盘值
+    return
+    -------
+      list
+          移动平均线
+    '''
+
+    values = []
+    MA = []
+
+    for index, row in data.iterrows():
+        values.append(row[val_name])
+        if len(values) == n:
+            del values[0]
+
+        MA.append(np.average(values))
+
+    return np.asarray(MA)
 
 
 def scan_blue_index(df):
