@@ -103,13 +103,13 @@ def ma(data, n=10, val_name="close"):
     return np.asarray(MA)
 
 
-def scan_blue_index(df):
+def scan_blue_index(df, field='bar', min_blue_area_width=6):
     blue_index_range= [] #存放2元tuple， [start:end]
 
     # 第一步：先把全部blue bar index都放入一个数组
     blue_bar_temp_arr = []
     for i in range(0, df.index.size): #从第一个开始
-        diff_val = df.loc[i:i,['bar']]['bar'].values[0]
+        diff_val = df.loc[i:i,[field]][field].values[0]
         if diff_val<0:
             blue_bar_temp_arr.append(i)
 
@@ -123,7 +123,19 @@ def scan_blue_index(df):
         while end_i < len(blue_bar_temp_arr) and blue_bar_temp_arr[end_i-1]+1 == blue_bar_temp_arr[end_i]:
             end_i += 1
 
-        blue_index_range.append((blue_bar_temp_arr[i], blue_bar_temp_arr[end_i-1]))
+        s = blue_bar_temp_arr[i]
+        e = blue_bar_temp_arr[end_i-1]
+        if e-s >= min_blue_area_width: #绿色区域要宽度足够大
+            blue_index_range.append((s, e))
+
         i = end_i
 
     return blue_index_range
+
+
+def scan_bar_wave(df, field='bar'):
+    """
+    扫描bar波浪，返回波浪的高、低点
+    """
+
+    pass
