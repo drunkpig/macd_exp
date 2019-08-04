@@ -3,10 +3,16 @@ import numpy as np
 from futu import  *
 from datetime import datetime
 
+class KL_Period(object):
+    KL_60 = "KL_60"
+    KL_30 = "KL_30"
+    KL_15 = "KL_15"
+
+
 K_LINE_TYPE={
-    "KL_60": KLType.K_60M,
-    "KL_30": KLType.K_30M,
-    "KL_15": KLType.K_15M,
+    KL_Period.KL_60: KLType.K_60M,
+    KL_Period.KL_30: KLType.K_30M,
+    KL_Period.KL_15: KLType.K_15M,
 }
 
 def ema(data, n=12, val_name="close"):
@@ -215,7 +221,7 @@ def compute_df_bar(code_list):
     for code in code_list:
         for k, ktype in K_LINE_TYPE.items():
             csv_file_name = df_file_name(code, ktype)
-            df = pd.read_csv(csv_file_name)
+            df = pd.read_csv(csv_file_name, index=0)
             diff, dem, bar = macd(df)
             df['macd_bar'] = bar
             df['ma5'] = ma(df, 5)
@@ -224,14 +230,91 @@ def compute_df_bar(code_list):
             df.to_csv()
 
 
+def __bar_wave_tag(df, field_list):
+    """
+    为df里的字段代表的波谷打标
+    :param df:
+    :param field_list:
+    :return:
+    """
+    pass #TODO  先完成这个，后面的可以复用，通过扫描这个函数里的标记减少工作量
+
+
+def __is_bar_divergence(df,  field):
+    """
+    field字段是否出现了底背离
+    :param df:
+    :param field:
+    :return: 背离：1， 否则0
+    """
+    pass #TODO
+
+
+def __bar_2wave(df, field='ma_bar'):
+    """
+    2波段
+    :param df:
+    :param field:
+    :return:
+    """
+    pass #TODO
+
+
+def __is_macd_bar_reduce(df, field='macd_bar'):
+    """
+    macd 绿柱子第一根减少出现
+    :param df:
+    :param field:
+    :return:
+    """
+    pass #TODO
+
+
+def __bar_wave_cnt(df, field='macd_bar'):
+    """
+    当前的波峰是第几个
+    :param df:
+    :param field:
+    :return:  波峰个数, 默认1
+    """
+    pass  #TODO
+
+
 def macd_strategy(code_list):
     """
     策略入口
     :return:
     """
+    ok_code = {}
     for code in code_list:
-        if 60 绿：
-            pass #TODO
+        total_score = 0
+        df60 = pd.read_csv(df_file_name(code, KL_Period.KL_60))
+        if __is_macd_bar_reduce(df60, "macd_bar")==1:# 如果60分绿柱变短
+            total_score += 1 # 60分绿柱变短分数+1
+            bar_60_order = __bar_wave_cnt(df60, 'macd_bar') # 60分macd波段第几波？
+            total_score += (bar_60_order)*1  #多一波就多一分
+
+            ma_60_2wave = __bar_2wave(df60, 'ma_bar')
+            total_score += ma_60_2wave*1# 60分两波下跌
+
+            df30 = pd.read_csv(df_file_name(code, KL_Period.KL_30))
+            bar_30_divergence = __is_bar_divergence(df30, 'macd_bar') # 30分macd背离
+            total_score += bar_30_divergence
+
+            ma_30_2wave = __bar_2wave(df30, 'ma_bar')
+            total_score += (ma_30_2wave+ma_60_2wave*ma_30_2wave)*2
+
+            df15 = pd.read_csv(df_file_name(code, KL_Period.KL_15))
+            bar_15_divergence = __is_bar_divergence(df15, 'macd_bar')
+            total_score += bar_15_divergence
+
+            ma_15_2wave = __bar_2wave(df15, 'ma_bar') # 15分钟2个波段
+            total_score += (ma_15_2wave+ma_30_2wave*ma_15_2wave)*2
+
+            ok_code[code] = total_score
+
+            return ok_code
+
 
 if __name__=='__main__':
     """
@@ -239,4 +322,5 @@ if __name__=='__main__':
     macd_bar 判别, macd_wave_scan em_bar_wave_scan -> 按权重评分 
     """
     pass
+
 
