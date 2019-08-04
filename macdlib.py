@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+from futu import  *
+from datetime import datetime
 
 def ema(data, n=12, val_name="close"):
     import numpy as np
@@ -139,3 +141,68 @@ def scan_bar_wave(df, field='bar'):
     """
 
     pass
+
+
+def today():
+    tm_now = datetime.now()
+    td = tm_now.strftime("%Y-%m-%d")
+    return td
+
+def n_days_ago(n_days):
+    tm_now = datetime.now()
+    delta = timedelta(days=n_days)
+    tm_start = tm_now-delta
+    ago = tm_start.strftime("%Y-%m-%d")
+    return ago
+
+
+def prepare_csv_data(code_list):
+    """
+
+    :param code_list: 股票列表
+    :return:
+    """
+    quote_ctx = OpenQuoteContext(host='futuapi.mkmerich.com', port=54012)
+    kline_type = [KLType.K_60M, KLType.K_30M, KLType.K_15M]
+    for code in code_list:
+        for ktype in kline_type:
+            ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_days_ago(20), end=today(),
+                                                                ktype=ktype,
+                                                                fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE],
+                                                                max_count=1000)
+            df.to_csv(f'data/{code}_{ktype}.csv')
+            time.sleep(3)
+
+
+def compute_df_bar(code_list):
+    """
+    计算60,30,15分钟的指标，存盘  TODO
+    :param df:
+    :return:
+    """
+    diff, dem, bar = macd(df)
+    df['macd_bar'] = bar
+    df['ma5'] = ma(df, 5)
+    df['ma10'] = ma(df, 10)
+    df['em_bar'] = (df['ma5'] - df['ma10']).apply(lambda val: round(val, 2))
+
+
+def macd_strategy(code_list):
+    """
+    策略入口
+    :return:
+    """
+    for code in code_list:
+        if 60 绿：
+            pass #TODO
+
+if __name__=='__main__':
+    """
+    df -> df 格式化统一 -> macd_bar, em5, em10 -> macd_bar, em_bar -> 
+    macd_bar 判别, macd_wave_scan em_bar_wave_scan -> 按权重评分 
+    """
+    pass
+
+
+
+
