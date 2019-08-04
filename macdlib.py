@@ -3,6 +3,12 @@ import numpy as np
 from futu import  *
 from datetime import datetime
 
+K_LINE_TYPE={
+    "KL_60": KLType.K_60M,
+    "KL_30": KLType.K_30M,
+    "KL_15": KLType.K_15M,
+}
+
 def ema(data, n=12, val_name="close"):
     import numpy as np
     '''
@@ -106,6 +112,13 @@ def ma(data, n=10, val_name="close"):
 
 
 def scan_blue_index(df, field='bar', min_blue_area_width=6):
+    """
+
+    :param df:
+    :param field:
+    :param min_blue_area_width:
+    :return:
+    """
     blue_index_range= [] #存放2元tuple， [start:end]
 
     # 第一步：先把全部blue bar index都放入一个数组
@@ -144,11 +157,20 @@ def scan_bar_wave(df, field='bar'):
 
 
 def today():
+    """
+
+    :return:
+    """
     tm_now = datetime.now()
     td = tm_now.strftime("%Y-%m-%d")
     return td
 
 def n_days_ago(n_days):
+    """
+
+    :param n_days:
+    :return:
+    """
     tm_now = datetime.now()
     delta = timedelta(days=n_days)
     tm_start = tm_now-delta
@@ -163,15 +185,25 @@ def prepare_csv_data(code_list):
     :return:
     """
     quote_ctx = OpenQuoteContext(host='futuapi.mkmerich.com', port=54012)
-    kline_type = [KLType.K_60M, KLType.K_30M, KLType.K_15M]
     for code in code_list:
-        for ktype in kline_type:
+        for _, ktype in K_LINE_TYPE.items():
             ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_days_ago(20), end=today(),
                                                                 ktype=ktype,
                                                                 fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE],
                                                                 max_count=1000)
-            df.to_csv(f'data/{code}_{ktype}.csv')
-            time.sleep(3)
+            csv_file_name = df_file_name(code, ktype)
+            df.to_csv(csv_file_name)
+            time.sleep(3.1)  #频率限制
+
+
+def df_file_name(stock_code, ktype):
+    """
+
+    :param stock_code:
+    :param ktype:
+    :return:
+    """
+    return f'data/{stock_code}_{ktype}.csv'
 
 
 def compute_df_bar(code_list):
@@ -180,11 +212,16 @@ def compute_df_bar(code_list):
     :param df:
     :return:
     """
-    diff, dem, bar = macd(df)
-    df['macd_bar'] = bar
-    df['ma5'] = ma(df, 5)
-    df['ma10'] = ma(df, 10)
-    df['em_bar'] = (df['ma5'] - df['ma10']).apply(lambda val: round(val, 2))
+    for code in code_list:
+        for k, ktype in K_LINE_TYPE.items():
+            csv_file_name = df_file_name(code, ktype)
+            df = pd.read_csv(csv_file_name)
+            diff, dem, bar = macd(df)
+            df['macd_bar'] = bar
+            df['ma5'] = ma(df, 5)
+            df['ma10'] = ma(df, 10)
+            df['em_bar'] = (df['ma5'] - df['ma10']).apply(lambda val: round(val, 2))
+            df.to_csv()
 
 
 def macd_strategy(code_list):
@@ -202,7 +239,4 @@ if __name__=='__main__':
     macd_bar 判别, macd_wave_scan em_bar_wave_scan -> 按权重评分 
     """
     pass
-
-
-
 
