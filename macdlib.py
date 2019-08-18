@@ -154,14 +154,6 @@ def scan_blue_index(df, field='bar', min_blue_area_width=6):
     return blue_index_range
 
 
-def scan_bar_wave(df, field='bar'):
-    """
-    扫描bar波浪，返回波浪的高、低点
-    """
-
-    pass
-
-
 def today():
     """
 
@@ -230,6 +222,32 @@ def compute_df_bar(code_list):
             df.to_csv()
 
 
+def __do_bar_wave_tag(df, field, blue_bar_area_list, peak_margin=3):
+    """
+
+    :param df:
+    :param field:
+    :param blue_bar_area_list: 绿柱子区域, [tuple(start, end)]
+    :param peak_margin: 顶/底的左右两侧需要有多少根小于/大于
+    :return:
+    """
+
+    tag_field = f'_{field}'
+    df[tag_field] = 0# 初始化为0， 波谷为-1
+    for s, e in blue_bar_area_list: # 找到s:e这一段里的所有波谷
+        start = s+peak_margin
+        if start > e:
+            continue
+        else:
+            # 找到最大柱子，在df上打标
+            # 从这根最大柱子向两侧扫描，直到波谷
+            # option: 评估波峰波谷的变化度（是否是深V？）
+            # 这个区间(s,e) 被分成了2部分，把剩余两部分重新加入到 blue_bar_area_list中
+            pass
+
+
+
+
 def __bar_wave_tag(df, field_list):
     """
     为df里的字段代表的波谷打标
@@ -237,7 +255,11 @@ def __bar_wave_tag(df, field_list):
     :param field_list:
     :return:
     """
-    pass #TODO  先完成这个，后面的可以复用，通过扫描这个函数里的标记减少工作量
+
+    for f in field_list:
+        blue_bar_area = scan_blue_index(df, f)
+        __do_bar_wave_tag(df, f, blue_bar_area)
+    return df #TODO  先完成这个，后面的可以复用，通过扫描这个函数里的标记减少工作量
 
 
 def __is_bar_divergence(df,  field):
@@ -255,7 +277,7 @@ def __bar_2wave(df, field='ma_bar'):
     2波段
     :param df:
     :param field:
-    :return:
+    :return: 如果是第2个波段，或者2个以上返回1，否则返回0
     """
     pass #TODO
 
@@ -272,7 +294,7 @@ def __is_macd_bar_reduce(df, field='macd_bar'):
 
 def __bar_wave_cnt(df, field='macd_bar'):
     """
-    当前的波峰是第几个
+    在一段连续的绿柱子区间，当前的波峰是第几个
     :param df:
     :param field:
     :return:  波峰个数, 默认1
@@ -288,12 +310,13 @@ def macd_strategy(code_list):
     ok_code = {}
     for code in code_list:
         total_score = 0
+
         df60 = pd.read_csv(df_file_name(code, KL_Period.KL_60))
         if __is_macd_bar_reduce(df60, "macd_bar")==1:# 如果60分绿柱变短
             total_score += 1 # 60分绿柱变短分数+1
+
             bar_60_order = __bar_wave_cnt(df60, 'macd_bar') # 60分macd波段第几波？
             total_score += (bar_60_order)*1  #多一波就多一分
-
             ma_60_2wave = __bar_2wave(df60, 'ma_bar')
             total_score += ma_60_2wave*1# 60分两波下跌
 
