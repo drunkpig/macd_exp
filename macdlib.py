@@ -15,6 +15,15 @@ K_LINE_TYPE={
     KL_Period.KL_15: KLType.K_15M,
 }
 
+
+class WaveType(object):
+    RED_TOP = 2  #红柱高峰
+    RED_BOTTOM = 1 #红柱峰底
+
+    GREEN_TOP = -2 #绿柱波峰
+    GREEN_BOTTOM = -1  #绿柱波底，乳沟深V的尖
+
+
 def ema(data, n=12, val_name="close"):
     import numpy as np
     '''
@@ -235,15 +244,17 @@ def __do_bar_wave_tag(df, field, blue_bar_area_list, peak_margin=3):
     tag_field = f'_{field}'
     df[tag_field] = 0# 初始化为0， 波谷为-1
     for s, e in blue_bar_area_list: # 找到s:e这一段里的所有波谷
-        start = s+peak_margin
-        if start > e:
-            continue
-        else:
-            # 找到最大柱子，在df上打标
-            # 从这根最大柱子向两侧扫描，直到波谷
-            # option: 评估波峰波谷的变化度（是否是深V？）
-            # 这个区间(s,e) 被分成了2部分，把剩余两部分重新加入到 blue_bar_area_list中
-            pass
+        # 找到最大柱子，在df上打标
+        min_row_index = df.iloc[s:e+1][field].idxmin(axis=0) # 寻找规定的行范围的某列最小值的索引
+        # 先不急于设置为波峰，因为还需要判断宽度是否符合要求
+        # 从这根最大柱子向两侧扫描，直到波谷
+        
+        df.at[min_row_index, tag_field] = WaveType.GREEN_TOP
+
+
+        # option: 评估波峰波谷的变化度（是否是深V？）
+        # 这个区间(s,e) 被分成了2部分，把剩余两部分重新加入到 blue_bar_area_list中
+        pass
 
 
 
