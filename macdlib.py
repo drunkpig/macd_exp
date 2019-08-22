@@ -1,7 +1,7 @@
-from datetime import datetime
-
 import numpy as np
+import pandas as pd
 from futu import *
+from pandas import DataFrame
 
 
 class KL_Period(object):
@@ -234,19 +234,19 @@ def compute_df_bar(code_list):
             df.to_csv()
 
 
-def __do_bar_wave_tag(df, field, successive_bar_area, moutain_min_width=5):
+def __do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_width=5):
     """
 
-    :param df: 输入是一个df的copy，这个函数会把负值统一变成正值进行处理
+    :param raw_df:
     :param field:
     :param successive_bar_area: 想同样色柱子区域, [tuple(start, end)]
     :param moutain_min_width: 作为一个山峰最小的宽度，否则忽略
     :return: 打了tag 的df副本
     """
-
+    df = raw_df.copy()
     tag_field = f'_{field}'
     df[tag_field] = 0  # 初始化为0
-    df[field] = df[field].apply(lambda val: abs(val))  # 变成正值处理
+    df[field] = df[field].abs()  # 变成正值处理
     for start, end in successive_bar_area:  # 找到s:e这一段里的所有波谷
         sub_area_list = [(start, end)]
         for s, e in sub_area_list:  # 产生的破碎的连续区间加入这个list里继续迭代直到为空
@@ -288,29 +288,36 @@ def __do_bar_wave_tag(df, field, successive_bar_area, moutain_min_width=5):
             df.at[s + j, tag_field] = WaveType.RED_BOTTOM
 
             # 剩下两段加入sub_area_list继续迭代
-            sub_area_list.append((s, s+i))
-            sub_area_list.append((s+j, e))
+            sub_area_list.append((s, s + i))
+            sub_area_list.append((s + j, e))
 
         # 这里是一个连续区间处理完毕
         # 还需要对波谷、波峰进行合并，如果不是深V那么就合并掉
-        #TODO
+        # TODO
 
     return df
 
 
-
-def __bar_wave_tag(df, field_list):
+def __bar_wave_field_tag(df, field):
     """
-    为df里的字段代表的波谷打标
-    :param df:
-    :param field_list:
-    :return:
+    扫描一个字段的波谷波峰
     """
-
-    for f in field_list:
-        blue_bar_area = scan_blue_index(df, f)
-        __do_bar_wave_tag(df, f, blue_bar_area)
+    blue_bar_area = scan_blue_index(df, field)
+    __do_bar_wave_tag(df, field, blue_bar_area)
     return df
+
+
+# def __bar_wave_tag(df, field_list):
+#     """
+#     为df里的字段列表代表的波谷打标
+#     :param df:
+#     :param field_list:
+#     :return:
+#     """
+#     for f in field_list:
+#         blue_bar_area = scan_blue_index(df, f)
+#         __do_bar_wave_tag(df, f, blue_bar_area)
+#     return df
 
 
 def __is_bar_divergence(df, field):
@@ -323,26 +330,6 @@ def __is_bar_divergence(df, field):
     pass  # TODO
 
 
-def __bar_2wave(df, field='ma_bar'):
-    """
-    2波段
-    :param df:
-    :param field:
-    :return: 如果是第2个波段，或者2个以上返回1，否则返回0
-    """
-    pass  # TODO
-
-
-def __is_macd_bar_reduce(df, field='macd_bar'):
-    """
-    macd 绿柱子第一根减少出现
-    :param df:
-    :param field:
-    :return:
-    """
-    pass  # TODO
-
-
 def __bar_wave_cnt(df, field='macd_bar'):
     """
     在一段连续的绿柱子区间，当前的波峰是第几个
@@ -351,6 +338,32 @@ def __bar_wave_cnt(df, field='macd_bar'):
     :return:  波峰个数, 默认1
     """
     pass  # TODO
+
+
+def __is_bar_multi_wave(df, field='ma_bar'):
+    """
+    2波段
+    :param df:
+    :param field:
+    :return: 如果是第2个波段，或者2个以上返回1，否则返回0
+    """
+    wave_cnt = __bar_wave_cnt(df, field)
+    rtn = 1 if wave_cnt >= 2 else 0
+    return rtn
+
+
+def __is_macd_bar_reduce(df:DataFrame, field='macd_bar'):
+    """
+    macd 绿柱子第一根减少出现
+    :param df:
+    :param field:
+    :return:
+    """
+    cur_bar_len = df.iloc[-1][field]
+    pre_bar_len = df.iloc[-2][field]
+
+    is_reduce = cur_bar_len > pre_bar_len # TODO 这里还需要评估一下到底减少多少幅度/速度是最优的
+    return is_reduce
 
 
 def macd_strategy(code_list):
@@ -368,21 +381,21 @@ def macd_strategy(code_list):
 
             bar_60_order = __bar_wave_cnt(df60, 'macd_bar')  # 60分macd波段第几波？
             total_score += (bar_60_order) * 1  # 多一波就多一分
-            ma_60_2wave = __bar_2wave(df60, 'ma_bar')
+            ma_60_2wave = __is_bar_multi_wave(df60, 'ma_bar')
             total_score += ma_60_2wave * 1  # 60分两波下跌
 
             df30 = pd.read_csv(df_file_name(code, KL_Period.KL_30))
             bar_30_divergence = __is_bar_divergence(df30, 'macd_bar')  # 30分macd背离
             total_score += bar_30_divergence
 
-            ma_30_2wave = __bar_2wave(df30, 'ma_bar')
+            ma_30_2wave = __is_bar_multi_wave(df30, 'ma_bar')
             total_score += (ma_30_2wave + ma_60_2wave * ma_30_2wave) * 2
 
             df15 = pd.read_csv(df_file_name(code, KL_Period.KL_15))
             bar_15_divergence = __is_bar_divergence(df15, 'macd_bar')
             total_score += bar_15_divergence
 
-            ma_15_2wave = __bar_2wave(df15, 'ma_bar')  # 15分钟2个波段
+            ma_15_2wave = __is_bar_multi_wave(df15, 'ma_bar')  # 15分钟2个波段
             total_score += (ma_15_2wave + ma_30_2wave * ma_15_2wave) * 2
 
             ok_code[code] = total_score
