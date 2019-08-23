@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 from futu import *
 from pandas import DataFrame
+from itertools import groupby
+from operator import itemgetter
 
 
 class KL_Period(object):
@@ -128,14 +130,36 @@ def ma(data, n=10, val_name="close"):
     return np.asarray(MA)
 
 
-def scan_blue_index(df, field='bar', min_blue_area_width=6):
+def find_successive_bar_area(raw_df:DataFrame, field='bar', min_area_width=6):
     """
+    改进的寻找连续区域算法
+    :param raw_df:
+    :param field:
+    :param min_area_width:
+    :return:
+    """
+    df = raw_df.copy()
+    successive_areas = []
+    # 第一步：把连续的同一颜色区域的index都放入一个数组
+    arrays = [df[df[field]>0], df[df[field]<0]]
+    for arr in arrays:
+        successive_area = []
+        for k, g in groupby(enumerate(arr), lambda iv : iv[0] - iv[1]):
+            index_group = list(map(itemgetter(1), g))
+            successive_area.append((min(index_group), max(index_group)))
+        successive_areas.append(successive_area)
 
+    return successive_areas[0], successive_areas[1] # 分别是红色和绿色的区间
+
+def find_successive_bar_area_(raw_df:DataFrame, field='bar', min_blue_area_width=6):
+    """
+    寻找连续的红，绿区域
     :param df:
     :param field:
     :param min_blue_area_width:
-    :return:
+    :return: red_area_list, blue_area_list
     """
+    df = raw_df.copy()
     blue_index_range = []  # 存放2元tuple， [start:end]
 
     # 第一步：先把全部blue bar index都放入一个数组
@@ -147,7 +171,6 @@ def scan_blue_index(df, field='bar', min_blue_area_width=6):
 
     # 第二步：扫描连续的绿柱子做成[start_index, end_index]二元组
 
-    # for i in range(0,len(blue_bar_temp_arr)):
     i = 0
     while i < len(blue_bar_temp_arr):
         start_i = i
@@ -155,7 +178,7 @@ def scan_blue_index(df, field='bar', min_blue_area_width=6):
         while end_i < len(blue_bar_temp_arr) and blue_bar_temp_arr[end_i - 1] + 1 == blue_bar_temp_arr[end_i]:
             end_i += 1
 
-        s = blue_bar_temp_arr[i]
+        s = blue_bar_temp_arr[start_i]
         e = blue_bar_temp_arr[end_i - 1]
         if e - s >= min_blue_area_width:  # 绿色区域要宽度足够大
             blue_index_range.append((s, e))
@@ -302,7 +325,7 @@ def __bar_wave_field_tag(df, field):
     """
     扫描一个字段的波谷波峰
     """
-    blue_bar_area = scan_blue_index(df, field)
+    blue_bar_area = find_successive_bar_area(df, field)
     __do_bar_wave_tag(df, field, blue_bar_area)
     return df
 
@@ -320,7 +343,7 @@ def __bar_wave_field_tag(df, field):
 #     return df
 
 
-def __is_bar_divergence(df, field):
+def __is_bar_divergence(df, field): # TODO 从哪个位置开始算背离？
     """
     field字段是否出现了底背离
     :param df:
@@ -330,7 +353,7 @@ def __is_bar_divergence(df, field):
     pass  # TODO
 
 
-def __bar_wave_cnt(df, field='macd_bar'):
+def __bar_wave_cnt(df, field='macd_bar'): # TODO 从哪个位置开始数浪？
     """
     在一段连续的绿柱子区间，当前的波峰是第几个
     :param df:
@@ -354,7 +377,7 @@ def __is_bar_multi_wave(df, field='ma_bar'):
 
 def __is_macd_bar_reduce(df:DataFrame, field='macd_bar'):
     """
-    macd 绿柱子第一根减少出现
+    macd 绿柱子第一根减少出现，不能减少太剧烈，前面的绿色柱子不能太少
     :param df:
     :param field:
     :return:
@@ -382,7 +405,7 @@ def macd_strategy(code_list):
             bar_60_order = __bar_wave_cnt(df60, 'macd_bar')  # 60分macd波段第几波？
             total_score += (bar_60_order) * 1  # 多一波就多一分
             ma_60_2wave = __is_bar_multi_wave(df60, 'ma_bar')
-            total_score += ma_60_2wave * 1  # 60分两波下跌
+            total_score += ma_60_2wave * 1  # 60分均线两波下跌
 
             df30 = pd.read_csv(df_file_name(code, KL_Period.KL_30))
             bar_30_divergence = __is_bar_divergence(df30, 'macd_bar')  # 30分macd背离
