@@ -141,7 +141,7 @@ def find_successive_bar_area(raw_df:DataFrame, field='bar', min_area_width=6):
     df = raw_df.copy()
     successive_areas = []
     # 第一步：把连续的同一颜色区域的index都放入一个数组
-    arrays = [df[df[field]>0], df[df[field]<0]]
+    arrays = [df[df[field]>=0].index.array, df[df[field]<=0].index.array]
     for arr in arrays:
         successive_area = []
         for k, g in groupby(enumerate(arr), lambda iv : iv[0] - iv[1]):
@@ -151,41 +151,42 @@ def find_successive_bar_area(raw_df:DataFrame, field='bar', min_area_width=6):
 
     return successive_areas[0], successive_areas[1] # 分别是红色和绿色的区间
 
-def find_successive_bar_area_(raw_df:DataFrame, field='bar', min_blue_area_width=6):
-    """
-    寻找连续的红，绿区域
-    :param df:
-    :param field:
-    :param min_blue_area_width:
-    :return: red_area_list, blue_area_list
-    """
-    df = raw_df.copy()
-    blue_index_range = []  # 存放2元tuple， [start:end]
-
-    # 第一步：先把全部blue bar index都放入一个数组
-    blue_bar_temp_arr = []
-    for i in range(0, df.index.size):  # 从第一个开始
-        diff_val = df.loc[i:i, [field]][field].values[0]
-        if diff_val < 0:
-            blue_bar_temp_arr.append(i)
-
-    # 第二步：扫描连续的绿柱子做成[start_index, end_index]二元组
-
-    i = 0
-    while i < len(blue_bar_temp_arr):
-        start_i = i
-        end_i = i + 1
-        while end_i < len(blue_bar_temp_arr) and blue_bar_temp_arr[end_i - 1] + 1 == blue_bar_temp_arr[end_i]:
-            end_i += 1
-
-        s = blue_bar_temp_arr[start_i]
-        e = blue_bar_temp_arr[end_i - 1]
-        if e - s >= min_blue_area_width:  # 绿色区域要宽度足够大
-            blue_index_range.append((s, e))
-
-        i = end_i
-
-    return blue_index_range
+#
+# def find_successive_bar_area_(raw_df:DataFrame, field='bar', min_blue_area_width=6):
+#     """
+#     寻找连续的红，绿区域
+#     :param df:
+#     :param field:
+#     :param min_blue_area_width:
+#     :return: red_area_list, blue_area_list
+#     """
+#     df = raw_df.copy()
+#     blue_index_range = []  # 存放2元tuple， [start:end]
+#
+#     # 第一步：先把全部blue bar index都放入一个数组
+#     blue_bar_temp_arr = []
+#     for i in range(0, df.index.size):  # 从第一个开始
+#         diff_val = df.loc[i:i, [field]][field].values[0]
+#         if diff_val < 0:
+#             blue_bar_temp_arr.append(i)
+#
+#     # 第二步：扫描连续的绿柱子做成[start_index, end_index]二元组
+#
+#     i = 0
+#     while i < len(blue_bar_temp_arr):
+#         start_i = i
+#         end_i = i + 1
+#         while end_i < len(blue_bar_temp_arr) and blue_bar_temp_arr[end_i - 1] + 1 == blue_bar_temp_arr[end_i]:
+#             end_i += 1
+#
+#         s = blue_bar_temp_arr[start_i]
+#         e = blue_bar_temp_arr[end_i - 1]
+#         if e - s >= min_blue_area_width:  # 绿色区域要宽度足够大
+#             blue_index_range.append((s, e))
+#
+#         i = end_i
+#
+#     return blue_index_range
 
 
 def today():
