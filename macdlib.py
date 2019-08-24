@@ -211,13 +211,13 @@ def compute_df_bar(code_list):
     for code in code_list:
         for k, ktype in K_LINE_TYPE.items():
             csv_file_name = df_file_name(code, ktype)
-            df = pd.read_csv(csv_file_name, index=0)
+            df = pd.read_csv(csv_file_name)
             diff, dem, bar = macd(df)
             df['macd_bar'] = bar  # macd
             df['ma5'] = ma(df, 5)
             df['ma10'] = ma(df, 10)
             df['em_bar'] = (df['ma5'] - df['ma10']).apply(lambda val: round(val, 2))  # 均线
-            df.to_csv()
+            df.to_csv(csv_file_name)
 
 
 def __do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_width=5):
@@ -288,22 +288,9 @@ def __bar_wave_field_tag(df, field):
     """
     扫描一个字段的波谷波峰
     """
-    blue_bar_area = find_successive_bar_area(df, field)
+    blue_bar_area = find_successive_bar_areas(df, field)
     __do_bar_wave_tag(df, field, blue_bar_area)
     return df
-
-
-# def __bar_wave_tag(df, field_list):
-#     """
-#     为df里的字段列表代表的波谷打标
-#     :param df:
-#     :param field_list:
-#     :return:
-#     """
-#     for f in field_list:
-#         blue_bar_area = scan_blue_index(df, f)
-#         __do_bar_wave_tag(df, f, blue_bar_area)
-#     return df
 
 
 def __is_bar_divergence(df, field): # TODO 从哪个位置开始算背离？
