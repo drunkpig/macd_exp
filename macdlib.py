@@ -130,7 +130,7 @@ def ma(data, n=10, val_name="close"):
     return np.asarray(MA)
 
 
-def find_successive_bar_areas(df:DataFrame, field='bar', min_area_width=6):
+def find_successive_bar_areas(df:DataFrame, field='bar'):
     """
     改进的寻找连续区域算法
     :param raw_df:
@@ -222,7 +222,7 @@ def compute_df_bar(code_list):
 
 def __do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_width=5):
     """
-
+    # TODO 试一下FFT寻找波谷波峰
     :param raw_df:
     :param field:
     :param successive_bar_area: 想同样色柱子区域, [tuple(start, end)]
