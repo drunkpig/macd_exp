@@ -4,6 +4,7 @@ from futu import *
 from pandas import DataFrame
 from itertools import groupby
 from operator import itemgetter
+import config
 
 
 class KL_Period(object):
@@ -180,10 +181,10 @@ def prepare_csv_data(code_list):
     :param code_list: 股票列表
     :return:
     """
-    quote_ctx = OpenQuoteContext(host='futuapi.mkmerich.com', port=54012)
+    quote_ctx = OpenQuoteContext(host=config.futuapi_address, port=config.futuapi_port)
     for code in code_list:
         for _, ktype in K_LINE_TYPE.items():
-            ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_days_ago(20), end=today(),
+            ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_days_ago(30), end=today(),
                                                                     ktype=ktype,
                                                                     fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE],
                                                                     max_count=1000)
@@ -211,7 +212,7 @@ def compute_df_bar(code_list):
     for code in code_list:
         for k, ktype in K_LINE_TYPE.items():
             csv_file_name = df_file_name(code, ktype)
-            df = pd.read_csv(csv_file_name)
+            df = pd.read_csv(csv_file_name, index_col=0)
             diff, dem, bar = macd(df)
             df['macd_bar'] = bar  # macd
             df['ma5'] = ma(df, 5)
@@ -220,7 +221,7 @@ def compute_df_bar(code_list):
             df.to_csv(csv_file_name)
 
 
-def __do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_width=5):
+def do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_width=5):
     """
     # TODO 试一下FFT寻找波谷波峰
     :param raw_df:
@@ -233,40 +234,48 @@ def __do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min
     tag_field = f'_{field}'
     df[tag_field] = 0  # 初始化为0
     df[field] = df[field].abs()  # 变成正值处理
-    for start, end in successive_bar_area:  # 找到s:e这一段里的所有波谷
+    for start, end in successive_bar_area:  # 找到s:e这一段里的所有波峰
         sub_area_list = [(start, end)]
+        print(f"--------------------------{start} ~ {end}")
         for s, e in sub_area_list:  # 产生的破碎的连续区间加入这个list里继续迭代直到为空
             if e - s + 1 < moutain_min_width:  # 山峰的宽度太窄，可以忽略
                 continue
             # 找到最大柱子，在df上打标
-            min_row_index = df.iloc[s:e + 1][field].idxmax(axis=0)  # 寻找规定的行范围的某列最小值的索引
+            print(f'{s} -> {e}', end='=====:')
+            max_row_index = df.iloc[s:e + 1][field].idxmax(axis=0)  # 寻找规定的行范围的某列最大（小）值的索引
             # 先不急于设置为波峰，因为还需要判断宽度是否符合要求
             # 从这根最大柱子向两侧扫描，直到波谷
             arr = df.iloc[s:e + 1][field].array  # 扫描这个数组
             # 从min_index先向左侧扫
-            arr_min_index = min_row_index - s  # 映射到以0开始的数组下标上
-            i = j = -1
+            arr_min_index = max_row_index - s  # 映射到以0开始的数组下标上
+            print(f">{max_row_index}<", end=':')
+            i = j = 0
             for i in range(arr_min_index, 1, -1):  # 向左侧扫描, 下标是[arr_min_index, 2]
                 if arr[i] >= arr[i - 1] or arr[i] >= arr[i - 2]:
-                    continue
+                    if i==2:
+                        i =0
+                        break
+                    else:
+                        continue
                 else:
-                    # 处理边界条件
-                    i = 0 if i == 2 else i
                     break  # i 就是左侧波谷
-
+            #[0,8], ix=7, j in [7, 7]
             # 从min_index向右侧扫描
             for j in range(arr_min_index, e - s - 1):  # 下标范围是[arr_min_index, len(arr)-2]
-
-                if arr[j] <= arr[j + 1] or arr[j] <= arr[j + 2]:
-                    continue
+                if arr[j] >= arr[j + 1] or arr[j] >= arr[j + 2]:
+                    if j==e-s-2:
+                        j = e-s
+                    else:
+                        # j =0 if j==e-s-2 else j
+                        continue
                 else:
-                    j = e - s if j == (e - s - 2) else j
+                    # j = e - s if j == (e - s - 2) else j
                     break  # j 就是右侧波谷
 
             # =========================================================
             # 现在连续的波段被分成了3段[s, s+i][s+i, s+j][s+j, e]
-            # min_row_index 为波峰；s+i为波谷；s+j为波谷；
-            df.at[min_row_index, tag_field] = WaveType.RED_TOP  # 打tag
+            # max_row_index 为波峰；s+i为波谷；s+j为波谷；
+            df.at[max_row_index, tag_field] = WaveType.RED_TOP  # 打tag
 
             # 在下一个阶段中评估波峰波谷的变化度（是否是深V？）
             # 一段连续的区间里可以产生多个波峰，但是波谷可能是重合的，这就要评估是否是深V，合并波峰
@@ -274,9 +283,15 @@ def __do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min
             df.at[s + j, tag_field] = WaveType.RED_BOTTOM
 
             # 剩下两段加入sub_area_list继续迭代
-            sub_area_list.append((s, s + i))
-            sub_area_list.append((s + j, e))
+            if s != s+i:
+                sub_area_list.append((s, s + i))
+                print(f"++{s}-{s+i}", end=":")
+            if s+j!=e and j!=0:
+                sub_area_list.append((s + j, e))
+                print(f"+{s+j}-{e}", end=":")
 
+
+            print(f'||{s+i}-{s+j}')
         # 这里是一个连续区间处理完毕
         # 还需要对波谷、波峰进行合并，如果不是深V那么就合并掉
         # TODO
@@ -289,7 +304,7 @@ def __bar_wave_field_tag(df, field):
     扫描一个字段的波谷波峰
     """
     blue_bar_area = find_successive_bar_areas(df, field)
-    __do_bar_wave_tag(df, field, blue_bar_area)
+    do_bar_wave_tag(df, field, blue_bar_area)
     return df
 
 
@@ -348,7 +363,7 @@ def macd_strategy(code_list):
     for code in code_list:
         total_score = 0
 
-        df60 = pd.read_csv(df_file_name(code, KL_Period.KL_60))
+        df60 = pd.read_csv(df_file_name(code, KL_Period.KL_60), index_col=0)
         if __is_macd_bar_reduce(df60, "macd_bar") == 1:  # 如果60分绿柱变短
             total_score += 1  # 60分绿柱变短分数+1
 
@@ -357,14 +372,14 @@ def macd_strategy(code_list):
             ma_60_2wave = __is_bar_multi_wave(df60, 'ma_bar')
             total_score += ma_60_2wave * 1  # 60分均线两波下跌
 
-            df30 = pd.read_csv(df_file_name(code, KL_Period.KL_30))
+            df30 = pd.read_csv(df_file_name(code, KL_Period.KL_30), index_col=0)
             bar_30_divergence = __is_bar_divergence(df30, 'macd_bar')  # 30分macd背离
             total_score += bar_30_divergence
 
             ma_30_2wave = __is_bar_multi_wave(df30, 'ma_bar')
             total_score += (ma_30_2wave + ma_60_2wave * ma_30_2wave) * 2
 
-            df15 = pd.read_csv(df_file_name(code, KL_Period.KL_15))
+            df15 = pd.read_csv(df_file_name(code, KL_Period.KL_15), index_col=0)
             bar_15_divergence = __is_bar_divergence(df15, 'macd_bar')
             total_score += bar_15_divergence
 
@@ -381,4 +396,11 @@ if __name__ == '__main__':
     df -> df 格式化统一 -> macd_bar, em5, em10 -> macd_bar, em_bar -> 
     macd_bar 判别, macd_wave_scan em_bar_wave_scan -> 按权重评分 
     """
-    pass
+    STOCK_CODE = 'SZ.002405'
+    #prepare_csv_data([STOCK_CODE])
+    compute_df_bar([STOCK_CODE])
+    fname = df_file_name(STOCK_CODE, KLType.K_60M)
+    df60 = pd.read_csv(fname, index_col=0)
+    red_areas, blue_areas = find_successive_bar_areas(df60, 'macd_bar')
+    df_new = do_bar_wave_tag(df60, 'macd_bar', red_areas)
+    df_new
