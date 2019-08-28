@@ -286,7 +286,7 @@ def do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_w
             if s != s+i:
                 sub_area_list.append((s, s + i))
                 print(f"++{s}-{s+i}", end=":")
-            if s+j!=e and j!=0:
+            if s+j!=e and j!=0:  # j为啥不能为0呢？如果为0 说明循环进不去,由此推倒出极值点位于最左侧开始的2个位置，这个宽度不足以参与下一个遍历。
                 sub_area_list.append((s + j, e))
                 print(f"+{s+j}-{e}", end=":")
 
