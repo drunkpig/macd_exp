@@ -1,0 +1,5 @@
+#https://pyecharts.org/#/zh-cn/rectangular_charts?id=bar%ef%bc%9a%e6%9f%b1%e7%8a%b6%e5%9b%be%e6%9d%a1%e5%bd%a2%e5%9b%be
+pyecharts
+numpy
+matplotlib
+pandas
