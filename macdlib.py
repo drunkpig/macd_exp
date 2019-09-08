@@ -227,7 +227,7 @@ def do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_w
     """
     这里找波峰和波谷，找谷底的目的是为了测量波峰/谷的斜率
     # TODO 试一下FFT寻找波谷波峰
-    # TODO L=X(n)-X(n-1)| X(n)=0 when n<0 else X(n); 然后扫描连续的正值和负值连续区间
+
     :param raw_df:
     :param field:
     :param successive_bar_area: 想同样色柱子区域, [tuple(start, end)]
@@ -249,7 +249,7 @@ def do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_w
             # 先不急于设置为波峰，因为还需要判断宽度是否符合要求
             # 从这根最大柱子向两侧扫描，直到波谷
             # max_row_index先向左侧扫描
-            i, j = s,e
+            i, j = s, e
             for i in range(max_row_index, s + 1, -1):  # 向左侧扫描, 下标是(s,s+1,   [s+2, max_row_index])
                 if df.at[i, field] >= df.at[i - 1, field] or df.at[i, field] >= df.at[i - 2, field]:
                     if i == s + 2:
@@ -292,6 +292,31 @@ def do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_w
         # TODO
 
     return df
+
+
+def do_bar_wave_tag2(raw_df: DataFrame, field, successive_bar_area, moutain_min_width=5):
+    """
+    寻找波峰波谷的快速算法
+    #  L=X(n)-X(n-1)| X(n)=0 when n<0 else X(n); 然后扫描连续的正值和负值连续区间
+    :param raw_df:
+    :param field:
+    :param successive_bar_area:
+    :param moutain_min_width:
+    :return:
+    """
+    df = raw_df[[field]].copy()
+    tag_field = f'_{field}_tag'
+    df[tag_field] = 0  # 初始化为0
+    df[field] = df[field].abs()  # 变成正值处理
+
+    skiped_diff = np.zeros(df.shape[0], dtype=np.bool)# 全部False,方便后面的或操作
+    for i in range(1, config.wave_scan_max_gap + 1):
+        for j in range(i, df.shape[0]):
+            skiped_diff[j] = (df.at(j, field) - df[j-1, field])>0 | skiped_diff[j]
+
+    
+
+
 
 
 def __bar_wave_field_tag(df, field):
