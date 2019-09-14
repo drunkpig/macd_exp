@@ -134,11 +134,11 @@ def ma(data, n=10, val_name="close"):
 
 def find_successive_bar_areas(df: DataFrame, field='bar'):
     """
+    这个地方不管宽度，只管找连续的区域
     改进的寻找连续区域算法；
     还有一种算法思路，由于红色柱子>0, 绿色柱子<0, 只要找到 x[n]*x[n+1]<0的点然后做分组即可。
     :param raw_df:
     :param field:
-    :param min_area_width:
     :return:
     """
     successive_areas = []
@@ -188,20 +188,21 @@ def prepare_csv_data(code_list, n_days=config.n_days_bar):
         for _, ktype in K_LINE_TYPE.items():
             ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_days_ago(n_days), end=today(),
                                                                     ktype=ktype,
-                                                                    fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE],
+                                                                    fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE,KL_FIELD.HIGH],
                                                                     max_count=1000)
             csv_file_name = df_file_name(code, ktype)
             df.to_csv(csv_file_name)
             time.sleep(3.1)  # 频率限制
 
 
-def df_file_name(stock_code, ktype, prefix=''):
+def df_file_name(stock_code, ktype):
     """
 
     :param stock_code:
     :param ktype:
     :return:
     """
+    prefix = config.g_config.DEV_MODEL
     return f'data/{prefix}{stock_code}_{ktype}.csv'
 
 
