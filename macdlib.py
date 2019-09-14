@@ -177,7 +177,7 @@ def n_days_ago(n_days):
     return ago
 
 
-def prepare_csv_data(code_list):
+def prepare_csv_data(code_list, n_days=config.n_days_bar):
     """
 
     :param code_list: 股票列表
@@ -186,7 +186,7 @@ def prepare_csv_data(code_list):
     quote_ctx = OpenQuoteContext(host=config.futuapi_address, port=config.futuapi_port)
     for code in code_list:
         for _, ktype in K_LINE_TYPE.items():
-            ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_days_ago(30), end=today(),
+            ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_days_ago(n_days), end=today(),
                                                                     ktype=ktype,
                                                                     fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE],
                                                                     max_count=1000)
@@ -195,14 +195,14 @@ def prepare_csv_data(code_list):
             time.sleep(3.1)  # 频率限制
 
 
-def df_file_name(stock_code, ktype):
+def df_file_name(stock_code, ktype, prefix=''):
     """
 
     :param stock_code:
     :param ktype:
     :return:
     """
-    return f'data/{stock_code}_{ktype}.csv'
+    return f'data/{prefix}{stock_code}_{ktype}.csv'
 
 
 def compute_df_bar(code_list):
@@ -309,23 +309,10 @@ def do_bar_wave_tag2(raw_df: DataFrame, field, successive_bar_area, moutain_min_
     df[tag_field] = 0  # 初始化为0
     df[field] = df[field].abs()  # 变成正值处理
 
-    skiped_diff = np.zeros(df.shape[0], dtype=np.bool)# 全部False,方便后面的或操作
+    skiped_diff = np.zeros(df.shape[0], dtype=np.bool)  # 全部False,方便后面的或操作
     for i in range(1, config.wave_scan_max_gap + 1):
         for j in range(i, df.shape[0]):
             skiped_diff[j] = (df.at(j, field) - df[j-1, field])>0 | skiped_diff[j]
-
-    
-
-
-
-
-def __bar_wave_field_tag(df, field):
-    """
-    扫描一个字段的波谷波峰
-    """
-    blue_bar_area = find_successive_bar_areas(df, field)
-    do_bar_wave_tag(df, field, blue_bar_area)
-    return df
 
 
 def __is_bar_divergence(df, field):  # TODO 从哪个位置开始算背离？
@@ -368,9 +355,11 @@ def __is_macd_bar_reduce(df: DataFrame, field='macd_bar'):
     :return:
     """
     cur_bar_len = df.iloc[-1][field]
-    pre_bar_len = df.iloc[-2][field]
+    pre_bar_1_len = df.iloc[-2][field]
+    pre_bar_2_len = df.iloc[-3][field]
 
-    is_reduce = cur_bar_len > pre_bar_len  # TODO 这里还需要评估一下到底减少多少幅度/速度是最优的
+    is_reduce = cur_bar_len > pre_bar_1_len and cur_bar_len > pre_bar_2_len
+    # TODO 这里还需要评估一下到底减少多少幅度/速度是最优的
     return is_reduce
 
 
@@ -417,10 +406,10 @@ if __name__ == '__main__':
     macd_bar 判别, macd_wave_scan em_bar_wave_scan -> 按权重评分 
     """
     STOCK_CODE = 'SZ.002405'
-    # prepare_csv_data([STOCK_CODE])
+    prepare_csv_data([STOCK_CODE], n_days=90)
     compute_df_bar([STOCK_CODE])
     fname = df_file_name(STOCK_CODE, KLType.K_60M)
     df60 = pd.read_csv(fname, index_col=0)
     red_areas, blue_areas = find_successive_bar_areas(df60, 'macd_bar')
-    df_new = do_bar_wave_tag2(df60, 'macd_bar', red_areas)
+    df_new = do_bar_wave_tag(df60, 'macd_bar', red_areas)
     print(df_new.index)
