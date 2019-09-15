@@ -26,19 +26,19 @@ def get_all_backtest_data(code):
         mydf = None
         ret, df, pk = quote_ctx.request_history_kline(code, start=n_days_ago( 365*2-1 ), end=today(),
                                                                 ktype=ktype,
-                                                                fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE, KL_FIELD.HIGH],
+                                                                fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE, KL_FIELD.HIGH, KL_FIELD.LOW],
                                                                 max_count=500)
         while pk is not None or df is not None:
             if mydf is None:
                 mydf = df
             else:
-                mydf = mydf.append(df, ignore_index=True)
+                mydf = mydf.append(df, ignore_index=True, sort=False)
 
             if pk is None:
                 break
             ret, df, pk = quote_ctx.request_history_kline(code, start=n_days_ago(365 * 2 - 1), end=today(),
                                                                     ktype=ktype,
-                                                                    fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE],
+                                                                    fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE, KL_FIELD.HIGH, KL_FIELD.LOW],
                                                                     max_count=500, page_req_key=pk)
 
         csv_file_name = df_file_name(code, ktype)

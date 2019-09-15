@@ -102,34 +102,9 @@ def macd(data, quick_n=12, slow_n=26, dem_n=9, val_name="close"):
     return DIFF, DEM, BAR
 
 
-def ma(data, n=10, val_name="close"):
-    '''
-    移动平均线 Moving Average
-    Parameters
-    ------
-      data:pandas.DataFrame
-                  通过 get_h_data 取得的股票数据
-      n:int
-                  移动平均线时长，时间单位根据data决定
-      val_name:string
-                  计算哪一列的列名，默认为 close 收盘值
-    return
-    -------
-      list
-          移动平均线
-    '''
-
-    values = []
-    MA = []
-
-    for index, row in data.iterrows():
-        values.append(row[val_name])
-        if len(values) == n:
-            del values[0]
-
-        MA.append(np.average(values))
-
-    return np.asarray(MA)
+def MA(df, window, field, new_field):
+    df[new_field] = df[field].rolling(window=window).mean()
+    return df
 
 
 def find_successive_bar_areas(df: DataFrame, field='bar'):
@@ -218,8 +193,8 @@ def compute_df_bar(code_list):
             df = pd.read_csv(csv_file_name, index_col=0)
             diff, dem, bar = macd(df)
             df['macd_bar'] = bar  # macd
-            df['ma5'] = ma(df, 5)
-            df['ma10'] = ma(df, 10)
+            df = MA(df, 5, 'close','ma5')
+            df = MA(df, 10, 'close', 'ma10')
             df['em_bar'] = (df['ma5'] - df['ma10']).apply(lambda val: round(val, 2))  # 均线
             df.to_csv(csv_file_name)
 
