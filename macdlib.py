@@ -4,7 +4,7 @@ from operator import itemgetter
 import numpy as np
 from futu import *
 from pandas import DataFrame
-
+import talib
 import config
 
 
@@ -29,82 +29,14 @@ class WaveType(object):
     GREEN_BOTTOM = -1  # 绿柱波底，乳沟深V的尖
 
 
-def ema(data, n=12, val_name="close"):
-    import numpy as np
-    '''
-        指数平均数指标 Exponential Moving Average
-        Parameters
-        ------
-          data:pandas.DataFrame
-                      通过 get_h_data 取得的数据
-          n:int
-                      移动平均线时长，时间单位根据data决定
-          val_name:string
-                      计算哪一列的列名，默认为 close 
-        return
-        -------
-          EMA:numpy.ndarray<numpy.float64>
-              指数平均数指标
-    '''
-
-    prices = []
-
-    EMA = []
-
-    for index, row in data.iterrows():
-        if index == 0:
-            past_ema = row[val_name]
-            EMA.append(row[val_name])
-        else:
-            # Y=[2*X+(N-1)*Y’]/(N+1)
-            today_ema = (2 * row[val_name] + (n - 1) * past_ema) / (n + 1)
-            past_ema = today_ema
-
-            EMA.append(today_ema)
-
-    return np.asarray(EMA)
-
-
-def macd(data, quick_n=12, slow_n=26, dem_n=9, val_name="close"):
-    import numpy as np
-    '''
-        指数平滑异同平均线(MACD: Moving Average Convergence Divergence)
-        Parameters
-        ------
-          data:pandas.DataFrame
-                      通过 get_h_data 取得的
-          quick_n:int
-                      DIFF差离值中快速移动天数
-          slow_n:int
-                      DIFF差离值中慢速移动天数
-          dem_n:int
-                      DEM讯号线的移动天数
-          val_name:string
-                      计算哪一列的列名，默认为 close 
-        return
-        -------
-          OSC:numpy.ndarray<numpy.float64>
-              MACD bar / OSC 差值柱形图 DIFF - DEM
-          DIFF:numpy.ndarray<numpy.float64>
-              差离值
-          DEM:numpy.ndarray<numpy.float64>
-              讯号线
-    '''
-
-    ema_quick = np.asarray(ema(data, quick_n, val_name))
-    ema_slow = np.asarray(ema(data, slow_n, val_name))
-    DIFF = ema_quick - ema_slow
-    data["diff"] = DIFF
-    DEM = ema(data, dem_n, "diff")
-    BAR = (DIFF - DEM) * 2
-    # data['dem'] = DEM
-    # data['bar'] = BAR
-    return DIFF, DEM, BAR
-
-
 def MA(df, window, field, new_field):
     df[new_field] = df[field].rolling(window=window).mean()
     return df
+
+
+def MACD(df, field_name='close', quick_n=12, slow_n=26, dem_n=9):
+    diff, macdsignal, macd_bar = talib.MACD(df[field_name], fastperiod=quick_n, slowperiod=slow_n, signalperiod=dem_n)
+    return diff, macdsignal, macd_bar
 
 
 def find_successive_bar_areas(df: DataFrame, field='bar'):
@@ -163,11 +95,21 @@ def prepare_csv_data(code_list, n_days=config.n_days_bar):
         for _, ktype in K_LINE_TYPE.items():
             ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_days_ago(n_days), end=today(),
                                                                     ktype=ktype,
-                                                                    fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE,KL_FIELD.HIGH],
+                                                                    fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE,KL_FIELD.HIGH,KL_FIELD.LOW],
                                                                     max_count=1000)
             csv_file_name = df_file_name(code, ktype)
             df.to_csv(csv_file_name)
             time.sleep(3.1)  # 频率限制
+
+
+def get_df_of_code(code, ktype=K_LINE_TYPE[KL_Period.KL_60], n_days=config.n_days_bar):
+    quote_ctx = OpenQuoteContext(host=config.futuapi_address, port=config.futuapi_port)
+    ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_days_ago(n_days), end=today(),
+                                                            ktype=ktype,
+                                                            fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE, KL_FIELD.HIGH,
+                                                                    KL_FIELD.LOW],
+                                                            max_count=1000)
+    return df
 
 
 def df_file_name(stock_code, ktype):
@@ -191,7 +133,7 @@ def compute_df_bar(code_list):
         for k, ktype in K_LINE_TYPE.items():
             csv_file_name = df_file_name(code, ktype)
             df = pd.read_csv(csv_file_name, index_col=0)
-            diff, dem, bar = macd(df)
+            diff, dem, bar = MACD(df)
             df['macd_bar'] = bar  # macd
             df = MA(df, 5, 'close','ma5')
             df = MA(df, 10, 'close', 'ma10')
@@ -291,7 +233,7 @@ def do_bar_wave_tag2(raw_df: DataFrame, field, successive_bar_area, moutain_min_
             skiped_diff[j] = (df.at(j, field) - df[j-1, field])>0 | skiped_diff[j]
 
 
-def __is_bar_divergence(df, field):  # TODO 从哪个位置开始算背离？
+def __is_bar_divergence(df, field):
     """
     field字段是否出现了底背离
     :param df:
@@ -301,7 +243,7 @@ def __is_bar_divergence(df, field):  # TODO 从哪个位置开始算背离？
     pass  # TODO
 
 
-def __bar_wave_cnt(df, field='macd_bar'):  # TODO 从哪个位置开始数浪？
+def __bar_wave_cnt(df, field='macd_bar'):
     """
     在一段连续的绿柱子区间，当前的波峰是第几个
     :param df:
@@ -311,7 +253,7 @@ def __bar_wave_cnt(df, field='macd_bar'):  # TODO 从哪个位置开始数浪？
     pass  # TODO
 
 
-def __is_bar_multi_wave(df, field='ma_bar'):
+def __is_bar_2wave(df, field='ma_bar'):
     """
     2波段
     :param df:
@@ -354,21 +296,21 @@ def macd_strategy(code_list):
 
             bar_60_order = __bar_wave_cnt(df60, 'macd_bar')  # 60分macd波段第几波？
             total_score += (bar_60_order) * 1  # 多一波就多一分
-            ma_60_2wave = __is_bar_multi_wave(df60, 'ma_bar')
+            ma_60_2wave = __is_bar_2wave(df60, 'ma_bar')
             total_score += ma_60_2wave * 1  # 60分均线两波下跌
 
             df30 = pd.read_csv(df_file_name(code, KL_Period.KL_30), index_col=0)
             bar_30_divergence = __is_bar_divergence(df30, 'macd_bar')  # 30分macd背离
             total_score += bar_30_divergence
 
-            ma_30_2wave = __is_bar_multi_wave(df30, 'ma_bar')
+            ma_30_2wave = __is_bar_2wave(df30, 'ma_bar')
             total_score += (ma_30_2wave + ma_60_2wave * ma_30_2wave) * 2
 
             df15 = pd.read_csv(df_file_name(code, KL_Period.KL_15), index_col=0)
             bar_15_divergence = __is_bar_divergence(df15, 'macd_bar')
             total_score += bar_15_divergence
 
-            ma_15_2wave = __is_bar_multi_wave(df15, 'ma_bar')  # 15分钟2个波段
+            ma_15_2wave = __is_bar_2wave(df15, 'ma_bar')  # 15分钟2个波段
             total_score += (ma_15_2wave + ma_30_2wave * ma_15_2wave) * 2
 
             ok_code[code] = total_score
