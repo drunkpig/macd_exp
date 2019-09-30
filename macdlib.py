@@ -2,9 +2,11 @@ from itertools import groupby
 from operator import itemgetter
 
 import numpy as np
+import talib
 from futu import *
 from pandas import DataFrame
-import talib
+from tushare.util.dateu import trade_cal, is_holiday
+
 import config
 
 
@@ -73,7 +75,6 @@ def today():
 
 def n_days_ago(n_days):
     """
-
     :param n_days:
     :return:
     """
@@ -82,6 +83,21 @@ def n_days_ago(n_days):
     tm_start = tm_now - delta
     ago = tm_start.strftime("%Y-%m-%d")
     return ago
+
+
+def n_trade_days_ago(n_trade_days, end_dt=today()):
+    """
+
+    :param n_trade_days: 从start_dt开始往前面推几个交易日。
+    :param start_dt: 往前推算交易日的开始日期，格式类似"2019-02-02"
+    :return:
+    """
+    trade_days = trade_cal()
+    last_idx = trade_days[trade_days.calendarDate == end_dt].index.values[0]
+
+    df = trade_days[trade_days.isOpen==1]
+    start_date = df[df.index<=last_idx].tail(n_trade_days).head(1).iat[0, 0]
+    return start_date
 
 
 def prepare_csv_data(code_list, n_days=config.n_days_bar):
@@ -95,11 +111,14 @@ def prepare_csv_data(code_list, n_days=config.n_days_bar):
         for _, ktype in K_LINE_TYPE.items():
             ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_days_ago(n_days), end=today(),
                                                                     ktype=ktype,
-                                                                    fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE,KL_FIELD.HIGH,KL_FIELD.LOW],
+                                                                    fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE,
+                                                                            KL_FIELD.HIGH, KL_FIELD.LOW],
                                                                     max_count=1000)
             csv_file_name = df_file_name(code, ktype)
             df.to_csv(csv_file_name)
             time.sleep(3.1)  # 频率限制
+
+    quote_ctx.close()
 
 
 def get_df_of_code(code, ktype=K_LINE_TYPE[KL_Period.KL_60], n_days=config.n_days_bar):
@@ -109,6 +128,7 @@ def get_df_of_code(code, ktype=K_LINE_TYPE[KL_Period.KL_60], n_days=config.n_day
                                                             fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE, KL_FIELD.HIGH,
                                                                     KL_FIELD.LOW],
                                                             max_count=1000)
+    quote_ctx.close()
     return df
 
 
@@ -135,7 +155,7 @@ def compute_df_bar(code_list):
             df = pd.read_csv(csv_file_name, index_col=0)
             diff, dem, bar = MACD(df)
             df['macd_bar'] = bar  # macd
-            df = MA(df, 5, 'close','ma5')
+            df = MA(df, 5, 'close', 'ma5')
             df = MA(df, 10, 'close', 'ma10')
             df['em_bar'] = (df['ma5'] - df['ma10']).apply(lambda val: round(val, 2))  # 均线
             df.to_csv(csv_file_name)
@@ -230,7 +250,7 @@ def do_bar_wave_tag2(raw_df: DataFrame, field, successive_bar_area, moutain_min_
     skiped_diff = np.zeros(df.shape[0], dtype=np.bool)  # 全部False,方便后面的或操作
     for i in range(1, config.wave_scan_max_gap + 1):
         for j in range(i, df.shape[0]):
-            skiped_diff[j] = (df.at(j, field) - df[j-1, field])>0 | skiped_diff[j]
+            skiped_diff[j] = (df.at(j, field) - df[j - 1, field]) > 0 | skiped_diff[j]
 
 
 def __is_bar_divergence(df, field):
@@ -286,11 +306,12 @@ if __name__ == '__main__':
     df -> df 格式化统一 -> macd_bar, em5, em10 -> macd_bar, em_bar -> 
     macd_bar 判别, macd_wave_scan em_bar_wave_scan -> 按权重评分 
     """
-    STOCK_CODE = 'SZ.002405'
-    prepare_csv_data([STOCK_CODE], n_days=90)
-    compute_df_bar([STOCK_CODE])
-    fname = df_file_name(STOCK_CODE, KLType.K_60M)
-    df60 = pd.read_csv(fname, index_col=0)
-    red_areas, blue_areas = find_successive_bar_areas(df60, 'macd_bar')
-    df_new = do_bar_wave_tag(df60, 'macd_bar', red_areas)
-    print(df_new.index)
+    # STOCK_CODE = 'SZ.002405'
+    # prepare_csv_data([STOCK_CODE], n_days=90)
+    # compute_df_bar([STOCK_CODE])
+    # fname = df_file_name(STOCK_CODE, KLType.K_60M)
+    # df60 = pd.read_csv(fname, index_col=0)
+    # red_areas, blue_areas = find_successive_bar_areas(df60, 'macd_bar')
+    # df_new = do_bar_wave_tag(df60, 'macd_bar', red_areas)
+    # print(df_new.index)
+    print(n_trade_days_ago(3))
