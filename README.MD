@@ -18,7 +18,7 @@ trade_cal()
 ```
 
 
-## 判断一个日期是不是交易日
+### 判断一个日期是不是交易日
 ```python
 from tushare.util.dateu import is_holiday
 
@@ -26,7 +26,7 @@ is_holiday("2019-09-22") # True， 假期非交易日期
 ```
 
 
-## 从某天向前推N个交易日
+### 从某天向前推N个交易日
 ```python
 from macdlib import n_trade_days_ago
 
