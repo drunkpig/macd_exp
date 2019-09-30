@@ -1,11 +1,10 @@
 from itertools import groupby
 from operator import itemgetter
 
-import numpy as np
 import talib
 from futu import *
 from pandas import DataFrame
-from tushare.util.dateu import trade_cal, is_holiday
+from tushare.util.dateu import trade_cal
 
 import config
 
@@ -32,11 +31,28 @@ class WaveType(object):
 
 
 def MA(df, window, field, new_field):
+    """
+
+    :param df:
+    :param window:
+    :param field:
+    :param new_field:
+    :return:
+    """
     df[new_field] = df[field].rolling(window=window).mean()
     return df
 
 
 def MACD(df, field_name='close', quick_n=12, slow_n=26, dem_n=9):
+    """
+    
+    :param df:
+    :param field_name:
+    :param quick_n:
+    :param slow_n:
+    :param dem_n:
+    :return:
+    """
     diff, macdsignal, macd_bar = talib.MACD(df[field_name], fastperiod=quick_n, slowperiod=slow_n, signalperiod=dem_n)
     return diff, macdsignal, macd_bar
 
@@ -95,8 +111,8 @@ def n_trade_days_ago(n_trade_days, end_dt=today()):
     trade_days = trade_cal()
     last_idx = trade_days[trade_days.calendarDate == end_dt].index.values[0]
 
-    df = trade_days[trade_days.isOpen==1]
-    start_date = df[df.index<=last_idx].tail(n_trade_days).head(1).iat[0, 0]
+    df = trade_days[trade_days.isOpen == 1]
+    start_date = df[df.index <= last_idx].tail(n_trade_days).head(1).iat[0, 0]
     return start_date
 
 
@@ -122,6 +138,13 @@ def prepare_csv_data(code_list, n_days=config.n_days_bar):
 
 
 def get_df_of_code(code, ktype=K_LINE_TYPE[KL_Period.KL_60], n_days=config.n_days_bar):
+    """
+
+    :param code:
+    :param ktype:
+    :param n_days:
+    :return:
+    """
     quote_ctx = OpenQuoteContext(host=config.futuapi_address, port=config.futuapi_port)
     ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_days_ago(n_days), end=today(),
                                                             ktype=ktype,
@@ -161,6 +184,15 @@ def compute_df_bar(code_list):
             df.to_csv(csv_file_name)
 
 
+def __ext_field(field_name):
+    """
+
+    :param field_name:
+    :return:
+    """
+    return f'_{field_name}_tag'
+
+
 def do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_width=5):
     """
     这里找波峰和波谷，找谷底的目的是为了测量波峰/谷的斜率
@@ -173,7 +205,7 @@ def do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_w
     :return: 打了tag 的df副本
     """
     df = raw_df[[field]].copy()
-    tag_field = f'_{field}_tag'
+    tag_field = __ext_field(field)
     df[tag_field] = 0  # 初始化为0
     df[field] = df[field].abs()  # 变成正值处理
     for start, end in successive_bar_area:  # 找到s:e这一段里的所有波峰
@@ -232,48 +264,68 @@ def do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_w
     return df
 
 
-def do_bar_wave_tag2(raw_df: DataFrame, field, successive_bar_area, moutain_min_width=5):
-    """
-    寻找波峰波谷的快速算法
-    #  L=X(n)-X(n-1)| X(n)=0 when n<0 else X(n); 然后扫描连续的正值和负值连续区间
-    :param raw_df:
-    :param field:
-    :param successive_bar_area:
-    :param moutain_min_width:
-    :return:
-    """
-    df = raw_df[[field]].copy()
-    tag_field = f'_{field}_tag'
-    df[tag_field] = 0  # 初始化为0
-    df[field] = df[field].abs()  # 变成正值处理
+# def do_bar_wave_tag2(raw_df: DataFrame, field, successive_bar_area, moutain_min_width=5):
+#     """
+#     寻找波峰波谷的快速算法
+#     #  L=X(n)-X(n-1)| X(n)=0 when n<0 else X(n); 然后扫描连续的正值和负值连续区间
+#     :param raw_df:
+#     :param field:
+#     :param successive_bar_area:
+#     :param moutain_min_width:
+#     :return:
+#     """
+#     df = raw_df[[field]].copy()
+#     tag_field = f'_{field}_tag'
+#     df[tag_field] = 0  # 初始化为0
+#     df[field] = df[field].abs()  # 变成正值处理
+#
+#     skiped_diff = np.zeros(df.shape[0], dtype=np.bool)  # 全部False,方便后面的或操作
+#     for i in range(1, config.wave_scan_max_gap + 1):
+#         for j in range(i, df.shape[0]):
+#             skiped_diff[j] = (df.at(j, field) - df[j - 1, field]) > 0 | skiped_diff[j]
 
-    skiped_diff = np.zeros(df.shape[0], dtype=np.bool)  # 全部False,方便后面的或操作
-    for i in range(1, config.wave_scan_max_gap + 1):
-        for j in range(i, df.shape[0]):
-            skiped_diff[j] = (df.at(j, field) - df[j - 1, field]) > 0 | skiped_diff[j]
 
-
-def __is_bar_divergence(df, field):
+def is_bar_bottom_divergence(df: DataFrame, field, value_field):
     """
     field字段是否出现了底背离
     :param df:
-    :param field:
+    :param field: bar的field名字
+    :param value_field:  价格
     :return: 背离：1， 否则0
     """
-    pass  # TODO
+    field_tag_name = __ext_field(field)
+    last_idx = df[df[field_tag_name] > 0].tail(1).index[0]
+    dftemp = df[(df[field_tag_name] != 0) & (df.index > last_idx) & (df[field_tag_name] == -2)].copy().reset_index(drop=True)
+    wave_cnt = dftemp.shape[0]
+    if wave_cnt==2:
+        bar_val_before = abs(dftemp.head(1).at[0, field])  # TODO 优化为矢量计算
+        bar_val_now = abs(dftemp.tail(1).at[0, field])
+        value_before = dftemp.head(1).at[0, value_field]
+        value_now = dftemp.tail(1).at[0, value_field]
+        if bar_val_now <=bar_val_before and value_now<value_before:
+            return True
+    elif wave_cnt>=3:
+        pass  # TODO
+
+    return False
 
 
-def __bar_wave_cnt(df, field='macd_bar'):
+def __bar_wave_cnt(df: DataFrame, field='macd_bar'):
     """
     在一段连续的绿柱子区间，当前的波峰是第几个
+    方法是：从当前时间开始找到前面第一段连续绿柱，然后计算绿柱区间有几个波峰；
+    如果当前是红柱但是没超过设置的最大宽度，可以忽略这段红柱
     :param df:
     :param field:
     :return:  波峰个数, 默认1
     """
-    pass  # TODO
+    field_tag_name = __ext_field(field)
+    last_idx = df[df[field_tag_name] > 0].tail(1).index[0]
+    wave_cnt = df[(df[field_tag_name] != 0) & (df.index > last_idx)&(df[field_tag_name]==-2)].shape[0]
+    return wave_cnt
 
 
-def __is_bar_2wave(df, field='ma_bar'):
+def is_bar_mult_wave(df, field='ma_bar'):
     """
     2波段
     :param df:
@@ -285,7 +337,7 @@ def __is_bar_2wave(df, field='ma_bar'):
     return rtn
 
 
-def __is_macd_bar_reduce(df: DataFrame, field='macd_bar'):
+def is_macd_bar_reduce(df: DataFrame, field='macd_bar'):
     """
     macd 绿柱子第一根减少出现，不能减少太剧烈，前面的绿色柱子不能太少
     :param df:
