@@ -295,17 +295,19 @@ def is_bar_bottom_divergence(df: DataFrame, field, value_field):
     """
     field_tag_name = __ext_field(field)
     last_idx = df[df[field_tag_name] > 0].tail(1).index[0]
-    dftemp = df[(df[field_tag_name] != 0) & (df.index > last_idx) & (df[field_tag_name] == -2)].copy().reset_index(drop=True)
+    dftemp = df[(df[field_tag_name] != 0) & (df.index > last_idx) & (
+                df[field_tag_name] == WaveType.GREEN_TOP)].copy().reset_index(drop=True)
+    
     wave_cnt = dftemp.shape[0]
-    if wave_cnt==2:
+    if wave_cnt >= 3:  # 如果多于3波，那么只看最后一波，暂时这么干 TODO 优化多重背离
+        dftemp = dftemp.tail(2)
+    if wave_cnt == 2:
         bar_val_before = abs(dftemp.head(1).at[0, field])  # TODO 优化为矢量计算
         bar_val_now = abs(dftemp.tail(1).at[0, field])
         value_before = dftemp.head(1).at[0, value_field]
         value_now = dftemp.tail(1).at[0, value_field]
-        if bar_val_now <=bar_val_before and value_now<value_before:
+        if bar_val_now <= bar_val_before and value_now < value_before:
             return True
-    elif wave_cnt>=3:
-        pass  # TODO
 
     return False
 
@@ -321,7 +323,8 @@ def __bar_wave_cnt(df: DataFrame, field='macd_bar'):
     """
     field_tag_name = __ext_field(field)
     last_idx = df[df[field_tag_name] > 0].tail(1).index[0]
-    wave_cnt = df[(df[field_tag_name] != 0) & (df.index > last_idx)&(df[field_tag_name]==-2)].shape[0]
+    wave_cnt = df[(df[field_tag_name] != 0) & (df.index > last_idx) & (df[field_tag_name] == WaveType.GREEN_TOP)].shape[
+        0]
     return wave_cnt
 
 
