@@ -285,28 +285,25 @@ def do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_w
 #             skiped_diff[j] = (df.at(j, field) - df[j - 1, field]) > 0 | skiped_diff[j]
 
 
-def is_bar_bottom_divergence(df: DataFrame, field, value_field):
+def is_bar_bottom_divergence(df: DataFrame, bar_field, value_field):
     """
     field字段是否出现了底背离
     :param df:
-    :param field: bar的field名字
+    :param bar_field: bar的field名字
     :param value_field:  价格
     :return: 背离：1， 否则0
     """
-    field_tag_name = __ext_field(field)
+    field_tag_name = __ext_field(bar_field)
     last_idx = df[df[field_tag_name] > 0].tail(1).index[0]
     dftemp = df[(df[field_tag_name] != 0) & (df.index > last_idx) & (
-                df[field_tag_name] == WaveType.GREEN_TOP)].copy().reset_index(drop=True)
-    
+            df[field_tag_name] == WaveType.GREEN_TOP)].copy().reset_index(drop=True)
+
     wave_cnt = dftemp.shape[0]
     if wave_cnt >= 3:  # 如果多于3波，那么只看最后一波，暂时这么干 TODO 优化多重背离
-        dftemp = dftemp.tail(2)
+        dftemp = dftemp.tail(2).reset_index(drop=True)
     if wave_cnt == 2:
-        bar_val_before = abs(dftemp.head(1).at[0, field])  # TODO 优化为矢量计算
-        bar_val_now = abs(dftemp.tail(1).at[0, field])
-        value_before = dftemp.head(1).at[0, value_field]
-        value_now = dftemp.tail(1).at[0, value_field]
-        if bar_val_now <= bar_val_before and value_now < value_before:
+        _df = dftemp.loc[1, [bar_field, value_field]] - dftemp.loc[0, [bar_field, value_field]]
+        if _df[bar_field] >= 0 > _df[value_field]:
             return True
 
     return False
