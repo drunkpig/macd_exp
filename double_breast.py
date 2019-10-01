@@ -1,7 +1,7 @@
 from macdlib import *
 
 
-def macd_strategy(code_list):
+def double_breast(code_list):
     """
     策略入口
     :return:
@@ -11,13 +11,13 @@ def macd_strategy(code_list):
         total_score = 0
 
         df60 = pd.read_csv(df_file_name(code, KL_Period.KL_60), index_col=0)
-        if __is_macd_bar_reduce(df60, "macd_bar") == 1:  # 如果60分绿柱变短
+        if is_macd_bar_reduce(df60, "macd_bar") == 1:  # 如果60分绿柱变短
             total_score += 1  # 60分绿柱变短分数+1
 
-            bar_60_order = __bar_wave_cnt(df60, 'macd_bar')  # 60分macd波段第几波？
-            total_score += (bar_60_order) * 1  # 多一波就多一分
-            ma_60_2wave = __is_bar_2wave(df60, 'ma_bar')
-            total_score += ma_60_2wave * 1  # 60分均线两波下跌
+            bar_60_order = bar_wave_cnt(df60, 'macd_bar')  # 60分macd波段第几波？
+            total_score += bar_60_order * 1  # 多一波就多一分
+            ma_60_2wave = bar_wave_cnt(df60, 'ma_bar')
+            total_score += ma_60_2wave * 1  # 60分均线波段下跌
 
             df30 = pd.read_csv(df_file_name(code, KL_Period.KL_30), index_col=0)
             bar_30_divergence = __is_bar_divergence(df30, 'macd_bar')  # 30分macd背离

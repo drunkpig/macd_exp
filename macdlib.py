@@ -309,7 +309,7 @@ def is_bar_bottom_divergence(df: DataFrame, bar_field, value_field):
     return False
 
 
-def __bar_wave_cnt(df: DataFrame, field='macd_bar'):
+def bar_wave_cnt(df: DataFrame, field='macd_bar'):
     """
     在一段连续的绿柱子区间，当前的波峰是第几个
     方法是：从当前时间开始找到前面第一段连续绿柱，然后计算绿柱区间有几个波峰；
@@ -325,16 +325,16 @@ def __bar_wave_cnt(df: DataFrame, field='macd_bar'):
     return wave_cnt
 
 
-def is_bar_mult_wave(df, field='ma_bar'):
-    """
-    2波段
-    :param df:
-    :param field:
-    :return: 如果是第2个波段，或者2个以上返回1，否则返回0
-    """
-    wave_cnt = __bar_wave_cnt(df, field)
-    rtn = 1 if wave_cnt >= 2 else 0
-    return rtn
+# def is_bar_mult_wave(df, field='ma_bar'):
+#     """
+#     2波段
+#     :param df:
+#     :param field:
+#     :return: 如果是第2个波段，或者2个以上返回1，否则返回0
+#     """
+#     wave_cnt = bar_wave_cnt(df, field)
+#     rtn = 1 if wave_cnt >= 2 else 0
+#     return rtn
 
 
 def is_macd_bar_reduce(df: DataFrame, field='macd_bar'):
