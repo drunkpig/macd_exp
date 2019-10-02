@@ -1,7 +1,37 @@
 from macdlib import *
 
 
-def double_breast(code_list):
+def __compute_score(df60, df30, df15):
+    """
+
+    :param df60:
+    :param df30:
+    :param df15:
+    :return: 总得分和每一项得分的统计信息(用于可视化）
+    """
+    pass
+
+    return None, None #TODO
+
+
+def double_wave(code_list):
+    """
+
+    :param code_list:
+    :return:
+    """
+    results = []
+    for code in code_list:
+        result = {}
+        df60 = pd.read_csv(df_file_name(code, KL_Period.KL_60), index_col=0)
+        df30 = pd.read_csv(df_file_name(code, KL_Period.KL_30), index_col=0)
+        df15 = pd.read_csv(df_file_name(code, KL_Period.KL_15), index_col=0)
+        total_score, score_table = __compute_score(df60, df30, df15)
+        result[code] = {"score":total_score, "score_table":score_table}
+        results.append(result)
+
+
+def double_breast__(code_list):
     """
     策略入口
     :return:

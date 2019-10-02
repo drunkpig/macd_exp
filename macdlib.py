@@ -181,16 +181,37 @@ def compute_df_bar(code_list):
             df = MA(df, 5, 'close', 'ma5')
             df = MA(df, 10, 'close', 'ma10')
             df['em_bar'] = (df['ma5'] - df['ma10']).apply(lambda val: round(val, 2))  # 均线
+            __add_df_tags(df, "macd_bar")
+            __add_df_tags(df, "em_bar")
             df.to_csv(csv_file_name)
 
 
-def __ext_field(field_name):
+def __add_df_tags(df: DataFrame, field):
+    """
+    field 的连续区域以及顶底
+    :param df:
+    :return:
+    """
+    tag_field_name = __ext_field(field)
+    red_areas, blue_areas = find_successive_bar_areas(df, field)
+    df_blue = do_bar_wave_tag(df, field, blue_areas)
+    df_blue[tag_field_name] *= -1
+    df_red = do_bar_wave_tag(df, field, red_areas)
+    df[tag_field_name] = df_red[tag_field_name] | df_blue[tag_field_name]
+
+    # 连续的区域用r, g区分，方便后续计算
+    color_tag_field = __ext_field(field, ext='rg_tag')
+    df[color_tag_field] = 'r'
+    df.loc[df[field] < 0, color_tag_field] = 'g'
+
+
+def __ext_field(field_name, ext='tag'):
     """
 
     :param field_name:
     :return:
     """
-    return f'_{field_name}_tag'
+    return f'_{field_name}_{ext}'
 
 
 def do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_width=5):
@@ -323,18 +344,6 @@ def bar_wave_cnt(df: DataFrame, field='macd_bar'):
     wave_cnt = df[(df[field_tag_name] != 0) & (df.index > last_idx) & (df[field_tag_name] == WaveType.GREEN_TOP)].shape[
         0]
     return wave_cnt
-
-
-# def is_bar_mult_wave(df, field='ma_bar'):
-#     """
-#     2波段
-#     :param df:
-#     :param field:
-#     :return: 如果是第2个波段，或者2个以上返回1，否则返回0
-#     """
-#     wave_cnt = bar_wave_cnt(df, field)
-#     rtn = 1 if wave_cnt >= 2 else 0
-#     return rtn
 
 
 def is_macd_bar_reduce(df: DataFrame, field='macd_bar'):
