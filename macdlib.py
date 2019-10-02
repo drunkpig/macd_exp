@@ -183,6 +183,7 @@ def compute_df_bar(code_list):
             df['em_bar'] = (df['ma5'] - df['ma10']).apply(lambda val: round(val, 2))  # 均线
             __add_df_tags(df, "macd_bar")
             __add_df_tags(df, "em_bar")
+            # TODO 这里还要把尾部，从最后一个1/-1之后的强行选出来一个顶、底。尾部一般由于数据少没有被打上tag，就要特殊处理
             df.to_csv(csv_file_name)
 
 
@@ -357,7 +358,7 @@ def is_macd_bar_reduce(df: DataFrame, field='macd_bar'):
     pre_bar_1_len = df.iloc[-2][field]
     pre_bar_2_len = df.iloc[-3][field]
 
-    is_reduce = cur_bar_len > pre_bar_1_len and cur_bar_len > pre_bar_2_len
+    is_reduce = cur_bar_len > pre_bar_1_len and cur_bar_len > pre_bar_2_len#TODO 必须是绿色柱子变短， 红色柱子在这里有bug
     # TODO 这里还需要评估一下到底减少多少幅度/速度是最优的
     return is_reduce
 
