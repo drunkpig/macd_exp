@@ -311,24 +311,19 @@ def bottom_divergence_cnt(df: DataFrame, bar_field, value_field):
     :param value_field:  价格
     :return: 没有背离为0，
     """
-    field_tag_name = __ext_field(bar_field)
     rg_tag_name = __ext_field(bar_field, ext='rg_tag')
-    last_idx = df[df[rg_tag_name] == 'r'].tail(1).index[0] + 1
-    if last_idx == df.shape[0]:  # 最后一个是红色柱子，没有底背离
-        return 0
+    field_tag_name = __ext_field(bar_field)
+    dftemp = __get_last_successive_rg_area(df, rg_tag_name, area='g') # 获得最后一段连续绿色区域
+    #TODO 对最后一段进行打tag，要做一定的预测行为
+    dftemp = df[(df[field_tag_name] != 0)  & (
+            df[field_tag_name] == WaveType.GREEN_TOP)].reset_index(drop=True)
 
-    dftemp = df[(df[field_tag_name] != 0) & (df.index >= last_idx) & (
-            df[field_tag_name] == WaveType.GREEN_TOP)].copy().reset_index(drop=True)
-    if dftemp.shape[0] < math.floor(config.moutain_min_width / 2):  # 绿柱子长度太短了
-        return 0
-
-    dftemp = dftemp.loc[:, [bar_field, value_field]]  # 现在包含了 idx -> ['macd_bar', 'close']
     bar_array = dftemp[bar_field].abs().array  # 最后一段连续绿色区域的bar
     val_array = dftemp[value_field].array
     bar_successive_areas = __find_successive_areas(bar_array)
     val_successive_areas = __find_successive_areas(val_array)
     # 然后找出来最大长度的区域，取min
-    len1 = max(map(lambda p: p[1] - p[0] + 1, bar_successive_areas))
+    len1 = max(map(lambda p: p[1] - p[0] + 1, bar_successive_areas)) #TODO 这里有个bug，价格和bar都要下降，这里暂时没有做检查
     len2 = max(map(lambda p: p[1] - p[0] + 1, val_successive_areas))
     return max(len1, len2)
 
@@ -345,7 +340,7 @@ def bar_green_wave_cnt(df: DataFrame, field='macd_bar'):
     field_tag_name = __ext_field(field)
     last_idx = df[df[field_tag_name] > 0].tail(1).index[0]
     wave_cnt = df[(df[field_tag_name] != 0) & (df.index > last_idx) & (df[field_tag_name] == WaveType.GREEN_TOP)].shape[
-        0]
+        0]  # TODO 这个地方有点问题，对于最后一段区域需要进一步处理，做一定预测。当前的GREEN_TOP在实时中不一定被打标
     return wave_cnt
 
 
