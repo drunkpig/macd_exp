@@ -333,7 +333,7 @@ def bottom_divergence_cnt(df: DataFrame, bar_field, value_field):
     return max(len1, len2)
 
 
-def bar_wave_cnt(df: DataFrame, field='macd_bar'):
+def bar_green_wave_cnt(df: DataFrame, field='macd_bar'):
     """
     在一段连续的绿柱子区间，当前的波峰是第几个
     方法是：从当前时间开始找到前面第一段连续绿柱，然后计算绿柱区间有几个波峰；
@@ -358,6 +358,36 @@ def ma_distance(df: DataFrame):
     close_price = df.iat(df.shape[0] - 1, 'close')
     ma_gap = df.iat(df.shape[0] - 1, 'em_bar')
     return round(abs(ma_gap / close_price), 2)
+
+
+def __get_last_successive_rg_area(df: DataFrame, rg_field_name, area='g'):
+    """
+    获取最后一段颜色为area的连续区域
+    :param df:
+    :param rg_field_name:
+    :param area:
+    :return: df
+    """
+    last_idx = df[df[rg_field_name] != area].tail(1).index[0]
+    dftemp = df[df.index > last_idx].copy().reset_index(drop=True)
+
+    return dftemp
+
+
+def resonance_cnt(df1: DataFrame, df2: DataFrame, field):
+    """
+    2个周期的共振次数
+    方法是：选最后一段连续绿色区域，找出波数w1和w2,然后返会min(s1,s2)
+    :param df1:
+    :param df2:
+    :param field:
+    :return:
+    """
+    area1 = __get_last_successive_rg_area(df1, __ext_field(field, ext="rg_tag"), area='g')
+    area2 = __get_last_successive_rg_area(df2, __ext_field(field, ext="rg_tag"),area='g')
+    wave_1 = bar_green_wave_cnt(area1, field)
+    wave_2 = bar_green_wave_cnt(area2, field)
+    return min(wave_1, wave_2)
 
 
 def is_macd_bar_reduce(df: DataFrame, field='macd_bar'):

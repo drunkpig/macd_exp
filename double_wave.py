@@ -44,9 +44,9 @@ def double_breast__(code_list):
         if is_macd_bar_reduce(df60, "macd_bar") == 1:  # 如果60分绿柱变短
             total_score += 1  # 60分绿柱变短分数+1
 
-            bar_60_order = bar_wave_cnt(df60, 'macd_bar')  # 60分macd波段第几波？
+            bar_60_order = bar_green_wave_cnt(df60, 'macd_bar')  # 60分macd波段第几波？
             total_score += bar_60_order * 1  # 多一波就多一分
-            ma_60_2wave = bar_wave_cnt(df60, 'ma_bar')
+            ma_60_2wave = bar_green_wave_cnt(df60, 'ma_bar')
             total_score += ma_60_2wave * 1  # 60分均线波段下跌
 
             df30 = pd.read_csv(df_file_name(code, KL_Period.KL_30), index_col=0)
