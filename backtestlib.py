@@ -24,7 +24,7 @@ def get_all_backtest_data(code):
 
     for _, ktype in K_LINE_TYPE.items():
         mydf = None
-        ret, df, pk = quote_ctx.request_history_kline(code, start=n_days_ago( 365*2-1 ), end=today(),
+        ret, df, pk = quote_ctx.request_history_kline(code, start=n_trade_days_ago( 365*2-1 ), end=today(),
                                                                 ktype=ktype,
                                                                 fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE, KL_FIELD.HIGH, KL_FIELD.LOW],
                                                                 max_count=500)
@@ -36,7 +36,7 @@ def get_all_backtest_data(code):
 
             if pk is None:
                 break
-            ret, df, pk = quote_ctx.request_history_kline(code, start=n_days_ago(365 * 2 - 1), end=today(),
+            ret, df, pk = quote_ctx.request_history_kline(code, start=n_trade_days_ago(365 * 2 - 1), end=today(),
                                                                     ktype=ktype,
                                                                     fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE, KL_FIELD.HIGH, KL_FIELD.LOW],
                                                                     max_count=500, page_req_key=pk)

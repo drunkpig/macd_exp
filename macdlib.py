@@ -1,6 +1,7 @@
 from itertools import groupby
 from operator import itemgetter
 
+import math
 import talib
 from futu import *
 from pandas import DataFrame
@@ -125,7 +126,7 @@ def prepare_csv_data(code_list, n_days=config.n_days_bar):
     quote_ctx = OpenQuoteContext(host=config.futuapi_address, port=config.futuapi_port)
     for code in code_list:
         for _, ktype in K_LINE_TYPE.items():
-            ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_days_ago(n_days), end=today(),
+            ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_trade_days_ago(n_days), end=today(),
                                                                     ktype=ktype,
                                                                     fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE,
                                                                             KL_FIELD.HIGH, KL_FIELD.LOW],
@@ -146,7 +147,7 @@ def get_df_of_code(code, ktype=K_LINE_TYPE[KL_Period.KL_60], n_days=config.n_day
     :return:
     """
     quote_ctx = OpenQuoteContext(host=config.futuapi_address, port=config.futuapi_port)
-    ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_days_ago(n_days), end=today(),
+    ret, df, page_req_key = quote_ctx.request_history_kline(code, start=n_trade_days_ago(n_days), end=today(),
                                                             ktype=ktype,
                                                             fields=[KL_FIELD.DATE_TIME, KL_FIELD.CLOSE, KL_FIELD.HIGH,
                                                                     KL_FIELD.LOW],
@@ -286,34 +287,18 @@ def do_bar_wave_tag(raw_df: DataFrame, field, successive_bar_area, moutain_min_w
     return df
 
 
-# def do_bar_wave_tag2(raw_df: DataFrame, field, successive_bar_area, moutain_min_width=5):
-#     """
-#     寻找波峰波谷的快速算法
-#     #  L=X(n)-X(n-1)| X(n)=0 when n<0 else X(n); 然后扫描连续的正值和负值连续区间
-#     :param raw_df:
-#     :param field:
-#     :param successive_bar_area:
-#     :param moutain_min_width:
-#     :return:
-#     """
-#     df = raw_df[[field]].copy()
-#     tag_field = f'_{field}_tag'
-#     df[tag_field] = 0  # 初始化为0
-#     df[field] = df[field].abs()  # 变成正值处理
-#
-#     skiped_diff = np.zeros(df.shape[0], dtype=np.bool)  # 全部False,方便后面的或操作
-#     for i in range(1, config.wave_scan_max_gap + 1):
-#         for j in range(i, df.shape[0]):
-#             skiped_diff[j] = (df.at(j, field) - df[j - 1, field]) > 0 | skiped_diff[j]
-
-
-def is_bar_bottom_divergence(df: DataFrame, bar_field, value_field):
+def bottom_divergence_cnt(df: DataFrame, bar_field, value_field):
     """
-    field字段是否出现了底背离
+    field字段出现连续背离的个数,也既多重背离个数。
+    背离必须是连续的。
+    方法是：找出最后一段bar_field（为了计算方便负值转为正值），value_field顶点的值，形成两个array
+        找到bar_field中连续的下降段S_1，value_field中连续的下降段S_2。最后返回max(S_1,S_2)
+        为什么选最大而不是最小呢？其实最小也可以，但里面涉及到一些模糊的东西，把阈值设大，然后还要
+        辅助人工交易，如果取了min过于严格会误杀很多。
     :param df:
     :param bar_field: bar的field名字
     :param value_field:  价格
-    :return: 背离：1， 否则0
+    :return: 没有背离为0，
     """
     field_tag_name = __ext_field(bar_field)
     last_idx = df[df[field_tag_name] > 0].tail(1).index[0]
@@ -350,17 +335,27 @@ def bar_wave_cnt(df: DataFrame, field='macd_bar'):
 def is_macd_bar_reduce(df: DataFrame, field='macd_bar'):
     """
     macd 绿柱子第一根减少出现，不能减少太剧烈，前面的绿色柱子不能太少
+    前提是：最后一段柱子必须是绿色的
     :param df:
     :param field:
     :return:
     """
-    cur_bar_len = df.iloc[-1][field]
-    pre_bar_1_len = df.iloc[-2][field]
-    pre_bar_2_len = df.iloc[-3][field]
+    field_tag_name = __ext_field(field)
+    last_idx = df[df[field_tag_name] == 'r'].tail(1).index[0]  # 最后一个红柱的index
+    if last_idx + 1 == df.shape[0]:  # 红柱子是最后一个，没有出绿柱
+        return False
+    else:
+        green_bar_len = df[last_idx + 1:].shape[0]
+        if green_bar_len > math.ceil(config.moutain_min_width / 2):
+            cur_bar_len = df.iloc[-1][field]
+            pre_bar_1_len = df.iloc[-2][field]
+            pre_bar_2_len = df.iloc[-3][field]
 
-    is_reduce = cur_bar_len > pre_bar_1_len and cur_bar_len > pre_bar_2_len#TODO 必须是绿色柱子变短， 红色柱子在这里有bug
-    # TODO 这里还需要评估一下到底减少多少幅度/速度是最优的
-    return is_reduce
+            is_reduce = cur_bar_len > pre_bar_1_len and cur_bar_len > pre_bar_2_len
+            # TODO 这里还需要评估一下到底减少多少幅度/速度是最优的
+            return is_reduce
+        else:  # 最后的绿色柱子太少了
+            return False
 
 
 if __name__ == '__main__':
