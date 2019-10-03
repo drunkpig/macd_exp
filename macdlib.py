@@ -58,6 +58,20 @@ def MACD(df, field_name='close', quick_n=12, slow_n=26, dem_n=9):
     return diff, macdsignal, macd_bar
 
 
+def __find_successive_areas(arr):
+    """
+
+    :param arr:
+    :return:
+    """
+    successive_area = []
+    for k, g in groupby(enumerate(arr), lambda iv: iv[0] - iv[1]):
+        index_group = list(map(itemgetter(1), g))
+        successive_area.append((min(index_group), max(index_group)))
+
+    return successive_area
+
+
 def find_successive_bar_areas(df: DataFrame, field='bar'):
     """
     这个地方不管宽度，只管找连续的区域
@@ -71,10 +85,7 @@ def find_successive_bar_areas(df: DataFrame, field='bar'):
     # 第一步：把连续的同一颜色区域的index都放入一个数组
     arrays = [df[df[field] >= 0].index.array, df[df[field] <= 0].index.array]
     for arr in arrays:
-        successive_area = []
-        for k, g in groupby(enumerate(arr), lambda iv: iv[0] - iv[1]):
-            index_group = list(map(itemgetter(1), g))
-            successive_area.append((min(index_group), max(index_group)))
+        successive_area = __find_successive_areas(arr)
         successive_areas.append(successive_area)
 
     return successive_areas[0], successive_areas[1]  # 分别是红色和绿色的区间
@@ -291,7 +302,7 @@ def bottom_divergence_cnt(df: DataFrame, bar_field, value_field):
     """
     field字段出现连续背离的个数,也既多重背离个数。
     背离必须是连续的。
-    方法是：找出最后一段bar_field（为了计算方便负值转为正值），value_field顶点的值，形成两个array
+    方法是：找出最后一段绿色bar_field（为了计算方便负值转为正值），value_field顶点的值，形成两个array
         找到bar_field中连续的下降段S_1，value_field中连续的下降段S_2。最后返回max(S_1,S_2)
         为什么选最大而不是最小呢？其实最小也可以，但里面涉及到一些模糊的东西，把阈值设大，然后还要
         辅助人工交易，如果取了min过于严格会误杀很多。
@@ -301,19 +312,25 @@ def bottom_divergence_cnt(df: DataFrame, bar_field, value_field):
     :return: 没有背离为0，
     """
     field_tag_name = __ext_field(bar_field)
-    last_idx = df[df[field_tag_name] > 0].tail(1).index[0]
-    dftemp = df[(df[field_tag_name] != 0) & (df.index > last_idx) & (
+    rg_tag_name = __ext_field(bar_field, ext='rg_tag')
+    last_idx = df[df[rg_tag_name] == 'r'].tail(1).index[0] + 1
+    if last_idx == df.shape[0]:  # 最后一个是红色柱子，没有底背离
+        return 0
+
+    dftemp = df[(df[field_tag_name] != 0) & (df.index >= last_idx) & (
             df[field_tag_name] == WaveType.GREEN_TOP)].copy().reset_index(drop=True)
+    if dftemp.shape[0] < math.floor(config.moutain_min_width / 2):  # 绿柱子长度太短了
+        return 0
 
-    wave_cnt = dftemp.shape[0]
-    if wave_cnt >= 3:  # 如果多于3波，那么只看最后一波，暂时这么干 TODO 优化多重背离
-        dftemp = dftemp.tail(2).reset_index(drop=True)
-    if wave_cnt == 2:
-        _df = dftemp.loc[1, [bar_field, value_field]] - dftemp.loc[0, [bar_field, value_field]]
-        if _df[bar_field] >= 0 > _df[value_field]:
-            return True
-
-    return False
+    dftemp = dftemp.loc[:, [bar_field, value_field]]  # 现在包含了 idx -> ['macd_bar', 'close']
+    bar_array = dftemp[bar_field].abs().array  # 最后一段连续绿色区域的bar
+    val_array = dftemp[value_field].array
+    bar_successive_areas = __find_successive_areas(bar_array)
+    val_successive_areas = __find_successive_areas(val_array)
+    # 然后找出来最大长度的区域，取min
+    len1 = max(map(lambda p: p[1] - p[0] + 1, bar_successive_areas))
+    len2 = max(map(lambda p: p[1] - p[0] + 1, val_successive_areas))
+    return max(len1, len2)
 
 
 def bar_wave_cnt(df: DataFrame, field='macd_bar'):
