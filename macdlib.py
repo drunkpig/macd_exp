@@ -1,7 +1,7 @@
+import math
 from itertools import groupby
 from operator import itemgetter
 
-import math
 import talib
 from futu import *
 from pandas import DataFrame
@@ -104,7 +104,7 @@ def n_days_ago(n_days):
 
 def n_trade_days_ago(n_trade_days, end_dt=today()):
     """
-
+    获取从end_dt向前的N个交易日开始的日期
     :param n_trade_days: 从start_dt开始往前面推几个交易日。
     :param start_dt: 往前推算交易日的开始日期，格式类似"2019-02-02"
     :return:
@@ -182,7 +182,7 @@ def compute_df_bar(code_list):
             df = MA(df, 5, 'close', 'ma5')
             df = MA(df, 10, 'close', 'ma10')
             df['em_bar'] = (df['ma5'] - df['ma10']).apply(lambda val: round(val, 2))  # 均线
-            __add_df_tags(df, "macd_bar")
+            __add_df_tags(df, "macd_bar")  # 顶部、谷底、连续区域打标
             __add_df_tags(df, "em_bar")
             # TODO 这里还要把尾部，从最后一个1/-1之后的强行选出来一个顶、底。尾部一般由于数据少没有被打上tag，就要特殊处理
             df.to_csv(csv_file_name)
@@ -197,7 +197,7 @@ def __add_df_tags(df: DataFrame, field):
     tag_field_name = __ext_field(field)
     red_areas, blue_areas = find_successive_bar_areas(df, field)
     df_blue = do_bar_wave_tag(df, field, blue_areas)
-    df_blue[tag_field_name] *= -1
+    df_blue[tag_field_name] *= -1  # 因为计算都变为正值，所以绿柱子要乘以-1
     df_red = do_bar_wave_tag(df, field, red_areas)
     df[tag_field_name] = df_red[tag_field_name] | df_blue[tag_field_name]
 
@@ -330,6 +330,17 @@ def bar_wave_cnt(df: DataFrame, field='macd_bar'):
     wave_cnt = df[(df[field_tag_name] != 0) & (df.index > last_idx) & (df[field_tag_name] == WaveType.GREEN_TOP)].shape[
         0]
     return wave_cnt
+
+
+def ma_distance(df: DataFrame):
+    """
+    计算(ma(5)-ma(10))/close，保留2位小数
+    :param df:
+    :return:
+    """
+    close_price = df.iat(df.shape[0] - 1, 'close')
+    ma_gap = df.iat(df.shape[0] - 1, 'em_bar')
+    return round(abs(ma_gap / close_price), 2)
 
 
 def is_macd_bar_reduce(df: DataFrame, field='macd_bar'):
