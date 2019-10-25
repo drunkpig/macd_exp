@@ -34,3 +34,15 @@ date_str = n_trade_days_ago(3, '2019-03-03')# 获取2019-03-03包含当日（如
 
 date_str2 = n_trade_days_ago(5)# 获取最近5个交易日的开始日期
 ```
+
+
+
+
+
+--------------
+
+### 几个交互式图表库
+
+1. ployly express
+2. pyechart
+3. 
